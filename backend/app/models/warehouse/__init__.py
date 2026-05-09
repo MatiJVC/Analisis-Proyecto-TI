@@ -28,6 +28,18 @@ except ImportError:
     from .salud.agg_alertas import AggAlertas
     from .salud.audit_pipeline import AuditPipeline
 
+from .incidentes import (
+    DimIncPoliticaSla,
+    DimIncReglaEscalamiento,
+    DimIncSistema,
+    FactIncAccionPlaybook,
+    FactIncAuditoria,
+    FactIncEvidencia,
+    FactIncEventoAlerta,
+    FactIncHistorialEstado,
+    FactIncidente,
+)
+
 __all__ = [
     "FactSubscription",
     "FactOrder",
@@ -42,5 +54,14 @@ __all__ = [
     "AggVisitasDiarias",
     "AggAlertas",
     "AuditPipeline",
+    "DimIncSistema",
+    "DimIncPoliticaSla",
+    "DimIncReglaEscalamiento",
+    "FactIncidente",
+    "FactIncEventoAlerta",
+    "FactIncHistorialEstado",
+    "FactIncAuditoria",
+    "FactIncAccionPlaybook",
+    "FactIncEvidencia",
 ]
 
