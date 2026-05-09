@@ -28,8 +28,9 @@ class FactSubscription(Base):
     billing_attempts = Column(Integer, default=0)
     billing_date = Column(DateTime, nullable=True)
     
-    # Timestamp
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Composite indexes for common queries
     __table_args__ = (

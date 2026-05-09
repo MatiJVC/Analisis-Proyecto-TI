@@ -1,15 +1,30 @@
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import engine, Base, get_db
-from app.models import RawEvent, FactSubscription  # noqa: F401 - Import models for SQLAlchemy registry
+from app.db import engine, Base
+from app.models import RawEvent, FactSubscription  
+from app.api import events_router, kpis_router
 
-# Crear tablas en la base de datos
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(
+    title="Event Ingestion & Analytics API",
+    description="Sistema de ingestión de eventos y análisis de KPIs para múltiples dominios (subscriptions, orders, iot, notifications)",
+    version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(events_router)
+app.include_router(kpis_router)
 
 
-@app.get("/")
+@app.get("/", tags=["health"])
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Event Ingestion & Analytics API is running", "status": "healthy"}
