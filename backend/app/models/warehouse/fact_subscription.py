@@ -10,7 +10,7 @@ class FactSubscription(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Business Keys
-    contract_id = Column(Integer, nullable=False, index=True)
+    contract_id = Column(String(50), nullable=False, index=True, unique=True)
     user_id = Column(Integer, nullable=False)
     plan_id = Column(Integer, nullable=False)
     

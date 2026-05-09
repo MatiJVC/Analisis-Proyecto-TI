@@ -1,4 +1,5 @@
 from .fact_subscription import FactSubscription
+from .fact_orders import FactOrder
 
 # Healthcare System DWH Models
 try:
@@ -29,6 +30,7 @@ except ImportError:
 
 __all__ = [
     "FactSubscription",
+    "FactOrder",
     "DimUsuarios",
     "DimProfesionales",
     "DimZonas",
@@ -41,3 +43,4 @@ __all__ = [
     "AggAlertas",
     "AuditPipeline",
 ]
+
