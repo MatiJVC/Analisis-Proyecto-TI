@@ -1,0 +1,196 @@
+// KPI Types
+export interface KPIData {
+  label: string
+  value: string | number
+  change?: number
+  changeType?: 'positive' | 'negative' | 'neutral'
+  icon?: string
+}
+
+// Orders
+export interface OrdersKPIs {
+  totalOrders: number
+  deliveryRate: number
+  revenue: number
+  avgOrderValue: number
+  slaCompliance: number
+  pendingOrders: number
+}
+
+export interface OrderChannel {
+  name: string
+  value: number
+  percentage: number
+}
+
+export interface OrderStatus {
+  status: string
+  count: number
+  color: string
+}
+
+export interface OrderTimeline {
+  date: string
+  orders: number
+  delivered: number
+  failed: number
+}
+
+// Subscriptions
+export interface SubscriptionKPIs {
+  activeSubscriptions: number
+  renewalRate: number
+  churn: number
+  monthlyRevenue: number
+  autoserviceRate: number
+  newSubscriptions: number
+}
+
+export interface SubscriptionTimeline {
+  date: string
+  renewals: number
+  cancellations: number
+  new: number
+}
+
+// Notifications
+export interface NotificationKPIs {
+  totalSent: number
+  deliveryRate: number
+  failureRate: number
+  uptime: number
+  avgLatency: number
+}
+
+export interface NotificationChannel {
+  channel: string
+  sent: number
+  delivered: number
+  failed: number
+}
+
+export interface NotificationStatus {
+  status: string
+  count: number
+  percentage: number
+}
+
+// IoT
+export interface IoTKPIs {
+  activeSensors: number
+  totalAlerts: number
+  avgLatency: number
+  invalidPackets: number
+  uptime: number
+}
+
+export interface IoTDevice {
+  id: string
+  name: string
+  status: 'online' | 'offline' | 'warning'
+  lastSeen: string
+  batteryLevel: number
+}
+
+export interface IoTAlert {
+  id: string
+  deviceId: string
+  type: string
+  severity: 'critical' | 'warning' | 'info'
+  message: string
+  timestamp: string
+}
+
+// Incidents
+export interface IncidentKPIs {
+  activeIncidents: number
+  resolvedToday: number
+  avgResolutionTime: number
+  slaCompliance: number
+  criticalCount: number
+}
+
+export interface IncidentTimeline {
+  date: string
+  opened: number
+  resolved: number
+  critical: number
+}
+
+export interface Incident {
+  id: string
+  title: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
+  status: 'open' | 'investigating' | 'resolved'
+  assignee: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Payments
+export interface PaymentKPIs {
+  totalTransactions: number
+  failedPayments: number
+  failureRate: number
+  revenue: number
+  avgTransactionValue: number
+  uptime: number
+}
+
+export interface PaymentFailure {
+  reason: string
+  count: number
+  percentage: number
+}
+
+export interface PaymentTimeline {
+  date: string
+  successful: number
+  failed: number
+  amount: number
+}
+
+// Logistics
+export interface LogisticsKPIs {
+  activeRoutes: number
+  onTimeDelivery: number
+  avgDeliveryTime: number
+  pendingDeliveries: number
+  driversActive: number
+}
+
+export interface Route {
+  id: string
+  driver: string
+  status: 'active' | 'completed' | 'delayed'
+  deliveries: number
+  completed: number
+  eta: string
+}
+
+// Service Status
+export interface ServiceStatus {
+  name: string
+  status: 'operational' | 'degraded' | 'outage'
+  uptime: number
+  lastIncident?: string
+}
+
+// Activity
+export interface Activity {
+  id: string
+  type: 'order' | 'payment' | 'incident' | 'notification' | 'iot'
+  message: string
+  timestamp: string
+  status?: 'success' | 'warning' | 'error'
+}
+
+// Alert
+export interface Alert {
+  id: string
+  title: string
+  message: string
+  severity: 'critical' | 'warning' | 'info'
+  source: string
+  timestamp: string
+}

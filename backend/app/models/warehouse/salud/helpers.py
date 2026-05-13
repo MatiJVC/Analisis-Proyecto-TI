@@ -1,8 +1,3 @@
-"""
-Data Warehouse Helper Module
-Utilities for loading and managing data in the DWH
-"""
-
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -18,7 +13,6 @@ from app.models.warehouse import (
 
 
 class DimensionHelper:
-    """Helper class for SCD Type 2 dimension loading"""
     
     @staticmethod
     def cargar_o_actualizar_dimension(

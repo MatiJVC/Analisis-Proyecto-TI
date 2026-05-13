@@ -133,7 +133,6 @@ async def get_subscription_summary_endpoint(
     description="Retorna todos los KPIs principales del dominio Orders"
 )
 async def get_orders_kpis(db: Session = Depends(get_db)) -> KPISResponse:
-    """Obtiene todos los KPIs consolidados del dominio Orders."""
     try:
         kpis = get_all_kpis(db)
         
@@ -164,7 +163,6 @@ async def get_orders_kpis(db: Session = Depends(get_db)) -> KPISResponse:
     description="Obtiene distribución de órdenes por canal de venta (web, app, call_center, store)"
 )
 async def get_orders_by_channels(db: Session = Depends(get_db)) -> ChannelsResponse:
-    """Obtiene distribución de órdenes por canal de venta."""
     try:
         total = get_total_orders(db)
         
@@ -211,7 +209,6 @@ async def get_orders_by_channels(db: Session = Depends(get_db)) -> ChannelsRespo
     description="Obtiene distribución de órdenes por estado del ciclo de vida"
 )
 async def get_orders_by_statuses(db: Session = Depends(get_db)) -> StatusResponse:
-    """Obtiene distribución de órdenes por estado."""
     try:
         total = get_total_orders(db)
         
@@ -257,7 +254,6 @@ async def get_orders_by_statuses(db: Session = Depends(get_db)) -> StatusRespons
     description="Obtiene línea de tiempo de órdenes grouped por fecha (últimos N días)"
 )
 async def get_orders_timeline(days: int = 30, db: Session = Depends(get_db)) -> TimelineResponse:
-    """Obtiene línea de tiempo de órdenes (últimos N días)."""
     try:
         if days < 1 or days > 365:
             raise HTTPException(
@@ -308,7 +304,6 @@ async def get_orders_timeline(days: int = 30, db: Session = Depends(get_db)) -> 
     description="Verifica disponibilidad del servicio de analítica de órdenes"
 )
 async def orders_health_check(db: Session = Depends(get_db)):
-    """Verificar disponibilidad del endpoint de analítica."""
     try:
         total = get_total_orders(db)
         return {

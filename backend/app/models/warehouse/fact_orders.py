@@ -5,10 +5,7 @@ from app.db.base import Base
 
 
 class FactOrder(Base):
-    """
-    Tabla de hechos para el dominio de órdenes.
-    Almacena información procesada desde eventos del sistema de pedidos omnicanal.
-    """
+
     __tablename__ = "fact_orders"
 
     # Primary Key

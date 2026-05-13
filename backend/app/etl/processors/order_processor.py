@@ -1,8 +1,3 @@
-"""
-ETL Processor para eventos del dominio Orders.
-Transforma eventos de raw_events a registros en fact_orders.
-"""
-
 from datetime import datetime
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -11,20 +6,10 @@ from app.models import RawEvent, FactOrder
 
 
 class OrderPayloadValidationError(Exception):
-    """Excepción para errores de validación de payload de órdenes."""
     pass
 
 
 def _validate_order_payload(payload: Dict[str, Any]) -> None:
-    """
-    Valida que el payload tenga los campos requeridos.
-    
-    Args:
-        payload: Dict con datos del evento
-        
-    Raises:
-        OrderPayloadValidationError: Si faltan campos requeridos
-    """
     required_fields = ["order_id", "customer_id"]
     
     for field in required_fields:
@@ -35,15 +20,7 @@ def _validate_order_payload(payload: Dict[str, Any]) -> None:
 
 
 def _map_event_to_flags(event_type: str) -> Dict[str, bool]:
-    """
-    Mapea tipos de eventos a flags de FactOrder.
-    
-    Args:
-        event_type: Tipo de evento (ej: "pedido_pagado", "pago_fallido")
-        
-    Returns:
-        Dict con flags a actualizar
-    """
+
     flags = {}
     
     if event_type == "pedido_pagado":
@@ -61,21 +38,7 @@ def _map_event_to_flags(event_type: str) -> Dict[str, bool]:
 
 
 def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]:
-    """
-    Procesa un evento de orden y lo transforma en registro fact_orders.
-    
-    Crea o actualiza un registro en fact_orders según el order_id del evento.
-    
-    Args:
-        db: Sesión SQLAlchemy
-        raw_event: Evento raw a procesar
-        
-    Returns:
-        FactOrder procesado o None si hay error
-        
-    Raises:
-        OrderPayloadValidationError: Si el payload no es válido
-    """
+
     try:
         # 1. Validar payload
         _validate_order_payload(raw_event.payload)
@@ -157,18 +120,7 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
 
 
 def process_orders_events(db: Session, limit: int = 1000) -> Dict[str, Any]:
-    """
-    Procesa todos los eventos de órdenes sin procesar desde raw_events.
-    
-    Lee eventos donde source="orders" y los procesa en lotes.
-    
-    Args:
-        db: Sesión SQLAlchemy
-        limit: Límite de eventos a procesar en este lote
-        
-    Returns:
-        Dict con estadísticas de procesamiento
-    """
+
     stats = {
         "total": 0,
         "processed": 0,
