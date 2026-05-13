@@ -11,6 +11,7 @@ import {
   logisticsAPI,
   overviewAPI,
 } from '@/services/api'
+import type { OrderChannelsResponse, OrderStatusResponse, OrderTimelineResponse } from '@/types/analytics'
 
 // SWR configuration
 const swrConfig = {
@@ -32,8 +33,8 @@ export function useOrderStatuses() {
   return useSWR('orders-statuses', ordersAPI.getStatuses, swrConfig)
 }
 
-export function useOrderTimeline() {
-  return useSWR('orders-timeline', ordersAPI.getTimeline, swrConfig)
+export function useOrderTimeline(days: number = 30) {
+  return useSWR(`orders-timeline-${days}`, () => ordersAPI.getTimeline(days), swrConfig)
 }
 
 // Subscriptions hooks

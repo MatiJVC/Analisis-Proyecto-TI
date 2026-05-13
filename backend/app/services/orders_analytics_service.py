@@ -40,36 +40,56 @@ def get_delivery_rate(db: Session) -> float:
 def get_payment_failure_rate(db: Session) -> float:
     """
     Calcula tasa de pagos fallidos.
-    Fórmula: COUNT(payment_success=FALSE) / COUNT(*)
+    Fórmula: COUNT(status='payment_failed') / COUNT(status IN ('paid', 'payment_failed'))
+    Solo cuenta órdenes que tuvieron intento de pago (basado en status).
     """
-    total = db.query(func.count(FactOrder.id)).scalar() or 0
-    if total == 0:
+    # Contar órdenes con intento de pago (status="paid" O status="payment_failed")
+    payment_attempted = db.query(func.count(FactOrder.id)).filter(
+        FactOrder.status.in_(["paid", "payment_failed"])
+    ).scalar() or 0
+    
+    if payment_attempted == 0:
         return 0.0
     
     failed = db.query(func.count(FactOrder.id)).filter(
-        FactOrder.payment_success == False
+        FactOrder.status == "payment_failed"
     ).scalar() or 0
     
-    return round(failed / total, 2)
+    return round(failed / payment_attempted, 2)
 
 
 def get_payment_success_rate(db: Session) -> float:
     """
     Calcula tasa de pagos exitosos.
-    Fórmula: COUNT(payment_success=TRUE) / COUNT(*)
+    Fórmula: COUNT(status='paid') / COUNT(status IN ('paid', 'payment_failed'))
+    Solo cuenta órdenes que tuvieron intento de pago (basado en status).
     """
-    return round(1.0 - get_payment_failure_rate(db), 2)
+    # Contar órdenes con intento de pago (status="paid" O status="payment_failed")
+    payment_attempted = db.query(func.count(FactOrder.id)).filter(
+        FactOrder.status.in_(["paid", "payment_failed"])
+    ).scalar() or 0
+    
+    if payment_attempted == 0:
+        return 0.0
+    
+    successful = db.query(func.count(FactOrder.id)).filter(
+        FactOrder.status == "paid"
+    ).scalar() or 0
+    
+    return round(successful / payment_attempted, 2)
 
 
 def get_avg_processing_time(db: Session) -> float:
     """
     Calcula tiempo promedio de procesamiento en horas.
-    Solo considera órdenes con processing_time_seconds registrado.
+    Solo considera órdenes entregadas (delivery_completed=TRUE).
     """
     avg_seconds = db.query(
         func.avg(FactOrder.processing_time_seconds)
     ).filter(
-        FactOrder.processing_time_seconds.isnot(None)
+        FactOrder.delivery_completed == True,
+        FactOrder.processing_time_seconds.isnot(None),
+        FactOrder.processing_time_seconds > 0
     ).scalar()
     
     if avg_seconds is None or avg_seconds == 0:
@@ -114,14 +134,14 @@ def get_stock_reservation_rate(db: Session) -> float:
 def get_fulfillment_rate(db: Session) -> float:
     """
     Calcula tasa de fulfillment completo.
-    Fórmula: COUNT(payment_success=TRUE AND delivery_completed=TRUE) / COUNT(*)
+    Fórmula: COUNT(status='paid' AND delivery_completed=TRUE) / COUNT(*)
     """
     total = db.query(func.count(FactOrder.id)).scalar() or 0
     if total == 0:
         return 0.0
     
     fulfilled = db.query(func.count(FactOrder.id)).filter(
-        FactOrder.payment_success == True,
+        FactOrder.status == "paid",
         FactOrder.delivery_completed == True
     ).scalar() or 0
     

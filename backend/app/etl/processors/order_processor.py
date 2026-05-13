@@ -50,6 +50,16 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
         total_amount = raw_event.payload.get("total_amount", 0.0)
         total_items = raw_event.payload.get("total_items", 0)
         
+        # Parsear created_at si viene en el payload (para testing)
+        payload_created_at = raw_event.payload.get("created_at")
+        if payload_created_at:
+            try:
+                created_at = datetime.fromisoformat(payload_created_at.replace('Z', '+00:00'))
+            except:
+                created_at = datetime.utcnow()
+        else:
+            created_at = datetime.utcnow()
+        
         # 3. Buscar FactOrder existente por order_id
         existing = db.query(FactOrder).filter(
             FactOrder.order_id == order_id
@@ -71,7 +81,7 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
                 payment_success=False,
                 stock_reserved=False,
                 delivery_completed=False,
-                created_at=datetime.utcnow(),
+                created_at=created_at,
                 updated_at=datetime.utcnow()
             )
             db.add(fact_order)
@@ -101,6 +111,11 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
         
         # 6. Actualizar timestamp de modificación
         fact_order.updated_at = datetime.utcnow()
+        
+        # 7. Calcular processing_time_seconds si se entrega
+        if raw_event.event_type == "pedido_entregado" and fact_order.created_at:
+            delta = fact_order.updated_at - fact_order.created_at
+            fact_order.processing_time_seconds = int(delta.total_seconds())
         
         # 7. Persistir en BD
         db.add(fact_order)

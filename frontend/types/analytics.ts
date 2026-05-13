@@ -9,18 +9,30 @@ export interface KPIData {
 
 // Orders
 export interface OrdersKPIs {
-  totalOrders: number
-  deliveryRate: number
-  revenue: number
-  avgOrderValue: number
-  slaCompliance: number
+  average_order_value: number
+  avg_processing_time_hours: number
+  delivery_rate: number
+  fulfillment_rate: number
+  payment_failure_rate: number
+  payment_success_rate: number
+  total_orders: number
+  revenue_total: number
+  sla_compliance: number
+  stock_reservation_rate: number
   pendingOrders: number
 }
 
 export interface OrderChannel {
-  name: string
-  value: number
-  percentage: number
+  channels: Array<OrderChannel>
+  channel: string
+  order_count: number
+  percentage_of_total: number
+  revenue: number
+}
+
+export interface OrderChannelsResponse {
+  total_orders: number
+  channels: OrderChannel[]
 }
 
 export interface OrderStatus {
@@ -29,11 +41,23 @@ export interface OrderStatus {
   color: string
 }
 
+export interface OrderStatusResponse {
+  total_orders: number
+  statuses: OrderStatus[]
+}
+
 export interface OrderTimeline {
   date: string
-  orders: number
-  delivered: number
-  failed: number
+  order_count: number
+  revenue: number
+  avg_order_value: number
+}
+
+export interface OrderTimelineResponse {
+  start_date: string
+  end_date: string
+  total_orders: number
+  timeline: OrderTimeline[]
 }
 
 // Subscriptions

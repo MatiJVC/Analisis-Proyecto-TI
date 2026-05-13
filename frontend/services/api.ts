@@ -6,7 +6,6 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 // Helper function for API calls (ready for real endpoints)
 async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
   if (!API_BASE_URL) {
-    // Return mock data when no API is configured
     return fallback
   }
   
@@ -22,10 +21,10 @@ async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
 
 // Orders API
 export const ordersAPI = {
-  getKPIs: () => fetchAPI('/analytics/orders/kpis', mockData.ordersKPIs),
-  getChannels: () => fetchAPI('/analytics/orders/channels', mockData.orderChannels),
-  getStatuses: () => fetchAPI('/analytics/orders/status', mockData.orderStatuses),
-  getTimeline: () => fetchAPI('/analytics/orders/timeline', mockData.orderTimeline),
+  getKPIs: () => fetchAPI('/kpis/orders/kpis', mockData.ordersKPIs),
+  getChannels: () => fetchAPI('/kpis/orders/channels', mockData.orderChannels),
+  getStatuses: () => fetchAPI('/kpis/orders/status', mockData.orderStatuses),
+  getTimeline: (days: number = 30) => fetchAPI(`/kpis/orders/timeline?days=${days}`, mockData.orderTimeline),
 }
 
 // Subscriptions API
