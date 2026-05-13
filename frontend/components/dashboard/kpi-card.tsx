@@ -7,7 +7,7 @@ interface KPICardProps {
   title: string
   value: string | number
   icon?: React.ReactNode
-  format?: 'number' | 'currency' | 'percentage' | 'hours'
+  format?: 'number' | 'currency' | 'percentage' | 'hours' | 'months'
   className?: string
 }
 
@@ -33,6 +33,8 @@ export function KPICard({
         return `${val.toFixed(1)}%`
       case 'hours':
         return `${val.toFixed(2)} h`
+      case 'months':
+        return `${val.toFixed(0)} meses`
       default:
         return new Intl.NumberFormat('en-US', {
           notation: val >= 10000 ? 'compact' : 'standard',

@@ -79,6 +79,12 @@ export const subscriptionTimeline: SubscriptionTimeline[] = Array.from({ length:
   }
 })
 
+export const retentionRates = {
+  month1: 85.2,
+  month3: 78.5,
+  month6: 72.3,
+  month12: 65.8,
+} 
 // Notifications Mock Data
 export const notificationKPIs: NotificationKPIs = {
   totalSent: 892450,

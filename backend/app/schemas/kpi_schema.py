@@ -20,6 +20,11 @@ class SubscriptionStats(BaseModel):
     renewed: int = Field(..., ge=0, description="Suscripciones renovadas")
     with_billing_success: int = Field(..., ge=0, description="Suscripciones con facturación exitosa")
     with_auto_service: int = Field(..., ge=0, description="Suscripciones con auto-servicio")
+    new_subscriptions: int = Field(..., ge=0, description="Nuevas suscripciones en el período")
+    cancellations: int = Field(..., ge=0, description="Cancelaciones en el período")
+    net_growth: int = Field(..., description="Crecimiento neto (nuevas - cancelaciones)")
+    churn_rate: float = Field(..., ge=0.0, le=100.0, description="Tasa de cancelación en porcentaje")
+    avg_lifetime_months: float = Field(..., ge=0.0, description="Tiempo promedio de vida en meses")
     
     class Config:
         json_schema_extra = {
@@ -28,7 +33,12 @@ class SubscriptionStats(BaseModel):
                 "active": 95,
                 "renewed": 82,
                 "with_billing_success": 97,
-                "with_auto_service": 67
+                "with_auto_service": 67,
+                "new_subscriptions": 15,
+                "cancellations": 3,
+                "net_growth": 12,
+                "churn_rate": 3.06,
+                "avg_lifetime_months": 6.5
             }
         }
 
@@ -50,7 +60,10 @@ class SubscriptionSummary(BaseModel):
                     "active": 95,
                     "renewed": 82,
                     "with_billing_success": 97,
-                    "with_auto_service": 67
+                    "with_auto_service": 67,
+                    "new_subscriptions": 15,
+                    "cancellations": 3,
+                    "net_growth": 12
                 }
             }
         }

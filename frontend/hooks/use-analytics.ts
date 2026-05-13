@@ -42,8 +42,12 @@ export function useSubscriptionKPIs() {
   return useSWR('subscriptions-kpis', subscriptionsAPI.getKPIs, swrConfig)
 }
 
-export function useSubscriptionTimeline() {
-  return useSWR('subscriptions-timeline', subscriptionsAPI.getTimeline, swrConfig)
+export function useSubscriptionTimeline(days: number = 30) {
+  return useSWR(`subscriptions-timeline-${days}`, () => subscriptionsAPI.getTimeline(days), swrConfig)
+}
+
+export function useSubscriptionRetentionRates() {
+  return useSWR('subscriptions-retention-rates', subscriptionsAPI.getRetentionRates, swrConfig)
 }
 
 // Notifications hooks

@@ -62,15 +62,27 @@ export interface OrderTimelineResponse {
 
 // Subscriptions
 export interface SubscriptionKPIs {
-  activeSubscriptions: number
-  renewalRate: number
-  churn: number
-  monthlyRevenue: number
-  autoserviceRate: number
-  newSubscriptions: number
+  stats:{
+    with_billing_success: number
+    total: number
+    renewed: number
+    active: number
+    with_auto_service: number
+    new_subscriptions: number
+    cancellations: number
+    net_growth: number
+    churn_rate: number
+    avg_lifetime_months: number
+  }
+  active_subscriptions: number
+  renewal_rate : number
+  error_rate: number
+  auto_service_rate: number
+
 }
 
 export interface SubscriptionTimeline {
+  timeline: any
   date: string
   renewals: number
   cancellations: number

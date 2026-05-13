@@ -53,10 +53,10 @@ async def create_event_endpoint(
         
         return EventCreateResponse(
             message="event stored",
-            event_id=db_event.id,
-            source=db_event.source,
-            event_type=db_event.event_type
-        )
+            event_id=db_event.id,  # ty:ignore[invalid-argument-type]
+            source=db_event.source,  # ty:ignore[invalid-argument-type]
+            event_type=db_event.event_type  # ty:ignore[invalid-argument-type]
+        ) 
     
     except Exception as e:
         raise HTTPException(
