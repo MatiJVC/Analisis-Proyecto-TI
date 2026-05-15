@@ -2,8 +2,33 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import engine, Base
-from app.models import RawEvent, FactSubscription  
+from app.models.raw import RawEvent
+from app.models.warehouse import (
+    FactSubscription,
+    FactOrder,
+    DimUsuarios,
+    DimProfesionales,
+    DimZonas,
+    DimEspecialidades,
+    DimPacientes,
+    FactVisitas,
+    FactAlertas,
+    FactFichasClinicas,
+)
 from app.api import events_router, kpis_router
+_ = (
+    RawEvent,
+    FactSubscription,
+    FactOrder,
+    DimUsuarios,
+    DimProfesionales,
+    DimZonas,
+    DimEspecialidades,
+    DimPacientes,
+    FactVisitas,
+    FactAlertas,
+    FactFichasClinicas,
+)
 
 Base.metadata.create_all(bind=engine)
 

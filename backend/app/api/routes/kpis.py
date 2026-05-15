@@ -19,7 +19,19 @@ from app.services.orders_analytics_service import (
     get_orders_by_channel,
     get_orders_by_status,
     get_orders_by_date,
-    get_total_orders
+    get_total_orders,
+)
+from app.services.salud_analytics_service import (
+    get_salud_dashboard_summary,
+    get_salud_today_schedule,
+    get_salud_visit_trends,
+)
+from app.schemas.salud_kpi_schema import (
+    SaludDashboardSummary,
+    SaludTodayScheduleResponse,
+    SaludVisitTrendsResponse,
+    SaludVisitTrendPoint,
+    SaludTodayVisitRow,
 )
 
 
@@ -314,4 +326,74 @@ async def orders_health_check(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Health check failed: {str(e)}"
+        )
+
+
+# ================================================================
+# SALUD / HOME HEALTH — KPIs desde el warehouse
+# ================================================================
+
+
+@router.get(
+    "/salud/dashboard",
+    response_model=SaludDashboardSummary,
+    summary="KPIs agregados salud",
+    description="Métricas desde dim_pacientes, dim_profesionales, dim_zonas y fact_visitas",
+)
+async def get_salud_dashboard(db: Session = Depends(get_db)) -> SaludDashboardSummary:
+    try:
+        data = get_salud_dashboard_summary(db)
+        return SaludDashboardSummary(**data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error KPIs salud: {str(e)}",
+        )
+
+
+@router.get(
+    "/salud/visit-trends",
+    response_model=SaludVisitTrendsResponse,
+    summary="Tendencia diaria de visitas",
+    description="Conteo por fecha_programada: visitas totales y completadas (últimos N días)",
+)
+async def get_salud_visit_trends_endpoint(
+    days: int = 14,
+    db: Session = Depends(get_db),
+) -> SaludVisitTrendsResponse:
+    try:
+        if days < 1 or days > 90:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="days debe estar entre 1 y 90",
+            )
+        raw = get_salud_visit_trends(db, days=days)
+        points = [SaludVisitTrendPoint(**p) for p in raw["points"]]
+        return SaludVisitTrendsResponse(days=raw["days"], points=points)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error tendencia visitas: {str(e)}",
+        )
+
+
+@router.get(
+    "/salud/today-schedule",
+    response_model=SaludTodayScheduleResponse,
+    summary="Agenda del día",
+    description="Visitas con fecha_programada = hoy, con paciente y profesional desde dimensiones",
+)
+async def get_salud_today_schedule_endpoint(
+    db: Session = Depends(get_db),
+) -> SaludTodayScheduleResponse:
+    try:
+        raw = get_salud_today_schedule(db)
+        rows = [SaludTodayVisitRow(**v) for v in raw["visits"]]
+        return SaludTodayScheduleResponse(date=raw["date"], visits=rows)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error agenda salud: {str(e)}",
         )
