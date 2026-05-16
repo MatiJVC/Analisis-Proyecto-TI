@@ -7,6 +7,10 @@ from app.services import create_event
 from app.etl.processors.order_processor import process_order_event
 from app.etl.processors.subscription_processor import process_subscription_event
 from app.etl.processors.salud_processor import process_salud_event
+from pydantic import ValidationError
+
+from app.schemas.payment_schema import PaymentPayload
+from app.services.payment_service import create_fact_pago
 
 
 router = APIRouter(
@@ -65,6 +69,47 @@ async def create_event_endpoint(
             except Exception as etl_error:
                 db.rollback()
                 print(f"⚠️  [AUTO-ETL-SALUD] Error: {str(etl_error)}")
+
+        elif db_event.source == "payments":
+            # payload must conform to PaymentPayload
+            # Distinguish event types for payments flow
+            if db_event.event_type == "intento_pago":
+                try:
+                    attempt = PaymentPayload = None
+                    from app.schemas.payment_schema import AttemptPaymentPayload
+                    attempt = AttemptPaymentPayload.parse_obj(db_event.payload)
+                except ValidationError as ve:
+                    db.rollback()
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payment attempt payload: {ve}")
+
+                try:
+                    fact = register_payment_attempt(db, attempt.dict())
+                    db_event.processed = True
+                    db.commit()
+                    print(f"✅ [AUTO-ETL] Evento intento_pago procesado: {fact.transaction_id}")
+                except Exception as etl_error:
+                    db.rollback()
+                    print(f"⚠️  [AUTO-ETL-PAYMENTS] Error on intento_pago: {str(etl_error)}")
+
+            elif db_event.event_type == "confirmar_pago":
+                try:
+                    from app.schemas.payment_schema import ConfirmPaymentPayload
+                    confirm = ConfirmPaymentPayload.parse_obj(db_event.payload)
+                except ValidationError as ve:
+                    db.rollback()
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payment confirm payload: {ve}")
+
+                try:
+                    fact = confirm_payment(db, confirm.token_transaccion, confirm.dict())
+                    db_event.processed = True
+                    db.commit()
+                    print(f"✅ [AUTO-ETL] Evento confirmar_pago procesado: {fact.transaction_id}")
+                except Exception as etl_error:
+                    db.rollback()
+                    print(f"⚠️  [AUTO-ETL-PAYMENTS] Error on confirmar_pago: {str(etl_error)}")
+            else:
+                db.rollback()
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown payment event_type")
 
         return EventCreateResponse(
             message="event stored",
