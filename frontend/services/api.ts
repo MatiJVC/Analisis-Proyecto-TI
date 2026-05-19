@@ -1,5 +1,6 @@
 // API Service - Using mock data for now, ready to connect to real endpoints
 import * as mockData from './mock-data'
+import { getAccessToken } from '@/lib/keycloak'
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '')
 
@@ -11,8 +12,17 @@ async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
 
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  const token = await getAccessToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`)
+    const response = await fetch(`${API_BASE_URL}${path}`, { headers })
     if (!response.ok) throw new Error(`API Error ${response.status}`)
     return response.json()
   } catch (err) {
