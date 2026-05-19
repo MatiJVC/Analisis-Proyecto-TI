@@ -5,8 +5,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.etl.processors import (
+    IncidentProcessingError,
     PayloadValidationError,
     SaludProcessingError,
+    process_incident_event,
     process_salud_event,
     process_subscription_event,
 )
@@ -75,6 +77,14 @@ def run_etl(db: Session, dry_run: bool = False) -> dict:
             source="salud",
             process_fn=process_salud_event,
             validation_errors=(SaludProcessingError,),
+            stats=stats,
+            dry_run=dry_run,
+        )
+        _process_source_pipeline(
+            db,
+            source="incidents",
+            process_fn=process_incident_event,
+            validation_errors=(IncidentProcessingError,),
             stats=stats,
             dry_run=dry_run,
         )

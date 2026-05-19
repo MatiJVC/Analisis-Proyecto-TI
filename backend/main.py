@@ -6,6 +6,7 @@ from app.models.raw import RawEvent
 from app.models.warehouse import (
     FactSubscription,
     FactOrder,
+    FactIncident,
     DimUsuarios,
     DimProfesionales,
     DimZonas,
@@ -20,6 +21,7 @@ _ = (
     RawEvent,
     FactSubscription,
     FactOrder,
+    FactIncident,
     DimUsuarios,
     DimProfesionales,
     DimZonas,

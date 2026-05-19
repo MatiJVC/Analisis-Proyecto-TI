@@ -1,20 +1,22 @@
 // API Service - Using mock data for now, ready to connect to real endpoints
 import * as mockData from './mock-data'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '')
 
 // Helper function for API calls (ready for real endpoints)
 async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
   if (!API_BASE_URL) {
     return fallback
   }
-  
+
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`)
-    if (!response.ok) throw new Error('API Error')
+    const response = await fetch(`${API_BASE_URL}${path}`)
+    if (!response.ok) throw new Error(`API Error ${response.status}`)
     return response.json()
-  } catch {
-    console.warn(`Using mock data for ${endpoint}`)
+  } catch (err) {
+    console.warn(`Using mock data for ${path}:`, err)
     return fallback
   }
 }
@@ -48,9 +50,9 @@ export const iotAPI = {
 
 // Incidents API
 export const incidentsAPI = {
-  getKPIs: () => fetchAPI('/analytics/incidents/kpis', mockData.incidentKPIs),
-  getTimeline: () => fetchAPI('/analytics/incidents/timeline', mockData.incidentTimeline),
-  getList: () => fetchAPI('/analytics/incidents/list', mockData.incidents),
+  getKPIs: () => fetchAPI('/kpis/incidents/kpis', mockData.incidentKPIs),
+  getTimeline: () => fetchAPI('/kpis/incidents/timeline?days=14', mockData.incidentTimeline),
+  getList: () => fetchAPI('/kpis/incidents/list', mockData.incidents),
 }
 
 // Payments API
@@ -67,8 +69,8 @@ export const logisticsAPI = {
 
 // Overview API
 export const overviewAPI = {
-  getGlobalKPIs: () => fetchAPI('/analytics/overview/kpis', mockData.globalKPIs),
-  getServiceStatuses: () => fetchAPI('/analytics/overview/services', mockData.serviceStatuses),
-  getRecentActivities: () => fetchAPI('/analytics/overview/activities', mockData.recentActivities),
-  getCriticalAlerts: () => fetchAPI('/analytics/overview/alerts', mockData.criticalAlerts),
+  getGlobalKPIs: () => fetchAPI('/kpis/overview/kpis', mockData.globalKPIs),
+  getServiceStatuses: () => fetchAPI('/kpis/overview/services', mockData.serviceStatuses),
+  getRecentActivities: () => fetchAPI('/kpis/overview/activities?limit=10', mockData.recentActivities),
+  getCriticalAlerts: () => fetchAPI('/kpis/overview/alerts?limit=10', mockData.criticalAlerts),
 }

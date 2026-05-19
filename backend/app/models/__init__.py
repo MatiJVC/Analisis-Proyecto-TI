@@ -1,4 +1,4 @@
 from app.models.raw import RawEvent
-from app.models.warehouse import FactSubscription, FactOrder
+from app.models.warehouse import FactSubscription, FactOrder, FactIncident
 
-__all__ = ["RawEvent", "FactSubscription", "FactOrder"]
+__all__ = ["RawEvent", "FactSubscription", "FactOrder", "FactIncident"]

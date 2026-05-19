@@ -33,6 +33,28 @@ from app.schemas.salud_kpi_schema import (
     SaludVisitTrendPoint,
     SaludTodayVisitRow,
 )
+from app.services.incidents_analytics_service import (
+    get_incidents_kpis,
+    get_incidents_list,
+    get_incidents_timeline,
+)
+from app.schemas.incidents_kpi_schema import (
+    IncidentKPIsResponse,
+    IncidentTimelinePoint,
+    IncidentRow,
+)
+from app.services.overview_analytics_service import (
+    get_critical_alerts,
+    get_global_kpis,
+    get_recent_activities,
+    get_service_statuses,
+)
+from app.schemas.overview_kpi_schema import (
+    ActivityRow,
+    AlertRow,
+    GlobalKPIsResponse,
+    ServiceStatusRow,
+)
 
 
 router = APIRouter(
@@ -294,6 +316,8 @@ async def get_orders_timeline(days: int = 30, db: Session = Depends(get_db)) -> 
                 {
                     "date": point["date"],
                     "order_count": point["order_count"],
+                    "delivered_count": point.get("delivered_count", 0),
+                    "failed_count": point.get("failed_count", 0),
                     "revenue": point["revenue"],
                     "avg_order_value": point["avg_order_value"]
                 }
@@ -396,4 +420,178 @@ async def get_salud_today_schedule_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error agenda salud: {str(e)}",
+        )
+
+
+# ================================================================
+# INCIDENTS — KPIs desde fact_incidents
+# ================================================================
+
+
+@router.get(
+    "/incidents/kpis",
+    response_model=IncidentKPIsResponse,
+    summary="KPIs de gestión de incidentes",
+    description="Métricas agregadas desde fact_incidents",
+)
+async def get_incidents_kpis_endpoint(
+    db: Session = Depends(get_db),
+) -> IncidentKPIsResponse:
+    try:
+        data = get_incidents_kpis(db)
+        return IncidentKPIsResponse(**data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error KPIs incidentes: {str(e)}",
+        )
+
+
+@router.get(
+    "/incidents/timeline",
+    response_model=list[IncidentTimelinePoint],
+    summary="Línea de tiempo de incidentes",
+    description="Volumen diario: abiertos, resueltos y críticos (últimos N días)",
+)
+async def get_incidents_timeline_endpoint(
+    days: int = 14,
+    db: Session = Depends(get_db),
+) -> list[IncidentTimelinePoint]:
+    try:
+        if days < 1 or days > 90:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="days debe estar entre 1 y 90",
+            )
+        raw = get_incidents_timeline(db, days=days)
+        return [IncidentTimelinePoint(**p) for p in raw]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error timeline incidentes: {str(e)}",
+        )
+
+
+@router.get(
+    "/incidents/list",
+    response_model=list[IncidentRow],
+    summary="Lista de incidentes",
+    description="Incidentes recientes desde el warehouse, ordenados por última actualización",
+)
+async def get_incidents_list_endpoint(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+) -> list[IncidentRow]:
+    try:
+        if limit < 1 or limit > 200:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="limit debe estar entre 1 y 200",
+            )
+        raw = get_incidents_list(db, limit=limit)
+        return [IncidentRow(**row) for row in raw]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listado incidentes: {str(e)}",
+        )
+
+
+# ================================================================
+# OVERVIEW — KPIs y feeds agregados desde warehouses existentes
+# ================================================================
+
+
+@router.get(
+    "/overview/kpis",
+    response_model=GlobalKPIsResponse,
+    summary="KPIs globales (overview)",
+    description="Agrega métricas desde fact_orders, fact_incidents y fact_subscriptions",
+)
+async def get_overview_kpis_endpoint(
+    db: Session = Depends(get_db),
+) -> GlobalKPIsResponse:
+    try:
+        return GlobalKPIsResponse(**get_global_kpis(db))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error KPIs overview: {str(e)}",
+        )
+
+
+@router.get(
+    "/overview/services",
+    response_model=list[ServiceStatusRow],
+    summary="Estado de servicios",
+    description="Estado derivado de incidentes activos por keywords del título",
+)
+async def get_overview_services_endpoint(
+    db: Session = Depends(get_db),
+) -> list[ServiceStatusRow]:
+    try:
+        rows = get_service_statuses(db)
+        return [ServiceStatusRow(**r) for r in rows]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error servicios overview: {str(e)}",
+        )
+
+
+@router.get(
+    "/overview/activities",
+    response_model=list[ActivityRow],
+    summary="Actividad reciente",
+    description="Últimos eventos cross-domain desde raw_events",
+)
+async def get_overview_activities_endpoint(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+) -> list[ActivityRow]:
+    try:
+        if limit < 1 or limit > 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="limit debe estar entre 1 y 50",
+            )
+        rows = get_recent_activities(db, limit=limit)
+        return [ActivityRow(**r) for r in rows]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error actividad overview: {str(e)}",
+        )
+
+
+@router.get(
+    "/overview/alerts",
+    response_model=list[AlertRow],
+    summary="Alertas críticas",
+    description="Incidentes activos con severidad critical/high",
+)
+async def get_overview_alerts_endpoint(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+) -> list[AlertRow]:
+    try:
+        if limit < 1 or limit > 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="limit debe estar entre 1 y 50",
+            )
+        rows = get_critical_alerts(db, limit=limit)
+        return [AlertRow(**r) for r in rows]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error alertas overview: {str(e)}",
         )

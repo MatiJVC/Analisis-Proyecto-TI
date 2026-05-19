@@ -7,6 +7,7 @@ from app.services import create_event
 from app.etl.processors.order_processor import process_order_event
 from app.etl.processors.subscription_processor import process_subscription_event
 from app.etl.processors.salud_processor import process_salud_event
+from app.etl.processors.incident_processor import process_incident_event
 
 
 router = APIRouter(
@@ -24,7 +25,7 @@ router = APIRouter(
     response_model=EventCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear un nuevo evento",
-    description="Recibe un evento (data lake: raw_events). Procesa automáticamente orders, subscriptions y salud hacia el warehouse cuando aplica."
+    description="Recibe un evento (data lake: raw_events). Procesa automáticamente orders, subscriptions, salud e incidents hacia el warehouse cuando aplica."
 )
 async def create_event_endpoint(
     event: EventCreate,
@@ -61,6 +62,16 @@ async def create_event_endpoint(
             except Exception as etl_error:
                 db.rollback()
                 print(f"⚠️  [AUTO-ETL-SALUD] Error: {str(etl_error)}")
+
+        elif db_event.source == "incidents":
+            try:
+                process_incident_event(db, db_event)
+                db_event.processed = True
+                db.commit()
+                print(f" [AUTO-ETL] Evento {db_event.event_type} (incidents) procesado automáticamente")
+            except Exception as etl_error:
+                db.rollback()
+                print(f"  [AUTO-ETL-INCIDENTS] Error: {str(etl_error)}")
 
         return EventCreateResponse(
             message="event stored",

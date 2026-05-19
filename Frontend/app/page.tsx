@@ -38,14 +38,19 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import type { ServiceStatus, Activity, Alert } from '@/types/analytics'
+import type { ServiceStatus, Activity, Alert, OrderTimelineResponse } from '@/types/analytics'
 
 export default function OverviewPage() {
   const { data: kpis, isLoading: kpisLoading } = useGlobalKPIs()
   const { data: services, isLoading: servicesLoading } = useServiceStatuses()
   const { data: activities, isLoading: activitiesLoading } = useRecentActivities()
   const { data: alerts, isLoading: alertsLoading } = useCriticalAlerts()
-  const { data: timeline, isLoading: timelineLoading } = useOrderTimeline()
+  const { data: timelineData, isLoading: timelineLoading } = useOrderTimeline()
+
+  const timelineRaw = timelineData as OrderTimelineResponse | undefined
+  const timeline = Array.isArray(timelineRaw)
+    ? timelineRaw
+    : timelineRaw?.timeline ?? []
 
   return (
     <DashboardLayout>
@@ -156,7 +161,7 @@ export default function OverviewPage() {
             >
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={timeline?.slice(-14) ?? []}>
+                  <AreaChart data={timeline.slice(-14)}>
                     <defs>
                       <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.3} />
@@ -185,7 +190,7 @@ export default function OverviewPage() {
                     />
                     <Area
                       type="monotone"
-                      dataKey="orders"
+                      dataKey="order_count"
                       stroke="var(--chart-2)"
                       fill="url(#ordersGradient)"
                       strokeWidth={2}
@@ -193,7 +198,7 @@ export default function OverviewPage() {
                     />
                     <Area
                       type="monotone"
-                      dataKey="delivered"
+                      dataKey="delivered_count"
                       stroke="var(--chart-1)"
                       fill="url(#deliveredGradient)"
                       strokeWidth={2}
