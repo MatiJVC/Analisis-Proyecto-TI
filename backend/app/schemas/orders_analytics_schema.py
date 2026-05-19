@@ -120,6 +120,8 @@ class TimelinePoint(BaseModel):
     """Punto en una línea de tiempo."""
     date: str = Field(..., description="Fecha en formato YYYY-MM-DD")
     order_count: int
+    delivered_count: int = 0
+    failed_count: int = 0
     revenue: float
     avg_order_value: float
 

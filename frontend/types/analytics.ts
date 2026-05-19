@@ -49,6 +49,8 @@ export interface OrderStatusResponse {
 export interface OrderTimeline {
   date: string
   order_count: number
+  delivered_count: number
+  failed_count: number
   revenue: number
   avg_order_value: number
 }

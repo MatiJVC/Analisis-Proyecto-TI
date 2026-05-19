@@ -5,7 +5,7 @@ Contiene funciones para calcular KPIs desde fact_orders.
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func, cast, Date, Integer
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 
@@ -209,28 +209,39 @@ def get_orders_by_date(db: Session, days: int = 30) -> List[Dict]:
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
+    delivered_case = func.sum(
+        func.cast(FactOrder.delivery_completed == True, Integer)
+    ).label("delivered_count")
+    failed_case = func.sum(
+        func.cast(FactOrder.status == "payment_failed", Integer)
+    ).label("failed_count")
+
     results = db.query(
         cast(FactOrder.created_at, Date).label("date"),
         func.count(FactOrder.id).label("order_count"),
+        delivered_case,
+        failed_case,
         func.sum(FactOrder.total_amount).label("revenue")
     ).filter(
         FactOrder.created_at >= cutoff_date
     ).group_by(
         cast(FactOrder.created_at, Date)
     ).order_by(
-        cast(FactOrder.created_at, Date).desc()
+        cast(FactOrder.created_at, Date).asc()
     ).all()
-    
+
     timeline = []
-    for date, count, revenue in results:
+    for date, count, delivered, failed, revenue in results:
         avg_value = float(revenue) / count if count and revenue else 0.0
         timeline.append({
             "date": date.isoformat(),
             "order_count": count or 0,
+            "delivered_count": int(delivered or 0),
+            "failed_count": int(failed or 0),
             "revenue": round(float(revenue) if revenue else 0.0, 2),
             "avg_order_value": round(avg_value, 2)
         })
-    
+
     return timeline
 
 

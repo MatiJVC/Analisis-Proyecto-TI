@@ -46,17 +46,25 @@ export const orderStatuses: OrderStatus[] = [
   { status: 'Failed', count: 171, color: 'var(--chart-5)' },
 ]
 
-export const orderTimeline: OrderTimeline[] = Array.from({ length: 30 }, (_, i) => {
-  const date = new Date()
-  date.setDate(date.getDate() - (29 - i))
-  const orders = Math.floor(400 + Math.random() * 200)
-  return {
-    date: date.toISOString().split('T')[0],
-    orders,
-    delivered: Math.floor(orders * (0.92 + Math.random() * 0.06)),
-    failed: Math.floor(orders * (0.01 + Math.random() * 0.02)),
-  }
-})
+export const orderTimeline = {
+  start_date: '',
+  end_date: '',
+  total_orders: 0,
+  timeline: Array.from({ length: 30 }, (_, i) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (29 - i))
+    const orders = Math.floor(400 + Math.random() * 200)
+    const revenue = orders * 80
+    return {
+      date: date.toISOString().split('T')[0],
+      order_count: orders,
+      delivered_count: Math.floor(orders * (0.92 + Math.random() * 0.06)),
+      failed_count: Math.floor(orders * (0.01 + Math.random() * 0.02)),
+      revenue,
+      avg_order_value: 80,
+    }
+  }),
+}
 
 // Subscriptions Mock Data
 export const subscriptionKPIs: SubscriptionKPIs = {
