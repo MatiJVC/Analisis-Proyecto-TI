@@ -3,8 +3,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.models.warehouse.pagos.fact_pagos import FactPagos
-from app.models.warehouse.pagos.dim_estados_conciliacion import DimEstadosConciliacion
+from app.pagos.models.fact_pagos import FactPagos
+from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
 
 
 ALLOWED_ESTADOS = [

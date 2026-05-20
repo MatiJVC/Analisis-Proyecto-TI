@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
-from app.models.warehouse.pagos.fact_payments_events import FactPaymentsEvent
+from app.pagos.models.fact_payments_events import FactPaymentsEvent
 
 # States that represent a completed failure (not pending, not approved)
 _FAILURE_STATES = ("discrepancia_de_monto", "discrepancia_de_transacciones")

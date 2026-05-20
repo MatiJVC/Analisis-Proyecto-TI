@@ -9,8 +9,8 @@ from app.etl.processors.subscription_processor import process_subscription_event
 from app.etl.processors.salud_processor import process_salud_event
 from pydantic import ValidationError
 
-from app.services.payment_service import register_payment_attempt, confirm_payment
-from app.models.warehouse.pagos.fact_payments_events import FactPaymentsEvent
+from app.pagos.services.payment_service import register_payment_attempt, confirm_payment
+from app.pagos.models.fact_payments_events import FactPaymentsEvent
 from decimal import Decimal
 
 
@@ -76,7 +76,7 @@ async def create_event_endpoint(
             # Distinguish event types for payments flow
             if db_event.event_type == "intento_pago":
                 try:
-                    from app.schemas.payment_schema import AttemptPaymentPayload
+                    from app.pagos.schemas.payment_schema import AttemptPaymentPayload
                     attempt = AttemptPaymentPayload.model_validate(db_event.payload)
                 except ValidationError as ve:
                     db.rollback()
@@ -106,7 +106,7 @@ async def create_event_endpoint(
 
             elif db_event.event_type == "confirmar_pago":
                 try:
-                    from app.schemas.payment_schema import ConfirmPaymentPayload
+                    from app.pagos.schemas.payment_schema import ConfirmPaymentPayload
                     confirm = ConfirmPaymentPayload.model_validate(db_event.payload)
                 except ValidationError as ve:
                     db.rollback()
@@ -115,7 +115,7 @@ async def create_event_endpoint(
                 try:
                     fact = confirm_payment(db, confirm.token_transaccion, confirm.model_dump())
                     # resolve status name from dim table (already set by confirm_payment)
-                    from app.models.warehouse.pagos.dim_estados_conciliacion import DimEstadosConciliacion
+                    from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
                     estado = db.get(DimEstadosConciliacion, fact.estado_conciliacion_id)
                     status_val = estado.nombre if estado else ("Aprobado" if confirm.approved else "discrepancia_de_monto")
 
@@ -140,8 +140,8 @@ async def create_event_endpoint(
             
             elif db_event.event_type == "cierre_diario_completado":
                 try:
-                    from app.schemas.closure_schema import CierreDiarioPayload
-                    from app.services.closure_service import process_cierre_diario
+                    from app.pagos.schemas.closure_schema import CierreDiarioPayload
+                    from app.pagos.services.closure_service import process_cierre_diario
                     from app.services.monitoring_service import check_payments_uptime
                     cierre = CierreDiarioPayload.model_validate(db_event.payload)
                 except ValidationError as ve:

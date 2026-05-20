@@ -5,9 +5,9 @@ from typing import Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.models.warehouse.pagos.fact_pagos import FactPagos
-from app.models.warehouse.pagos.dim_estados_conciliacion import DimEstadosConciliacion
-from app.models.warehouse.pagos.cierre_diario import CierreDiario
+from app.pagos.models.fact_pagos import FactPagos
+from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
+from app.pagos.models.cierre_diario import CierreDiario
 
 
 TOLERANCE = Decimal("0.01")  # tolerance in monetary comparison (1 cent)

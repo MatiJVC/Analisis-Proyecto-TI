@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas.payment_analytics_schema import PaymentKPIsResponse, PaymentTimelinePoint
-from app.services.payment_analytics_service import get_payment_kpis, get_payment_timeline
+from app.pagos.schemas.payment_analytics_schema import PaymentKPIsResponse, PaymentTimelinePoint
+from app.pagos.services.payment_analytics_service import get_payment_kpis, get_payment_timeline
 
 router = APIRouter(
     prefix="/analytics",

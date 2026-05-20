@@ -4,8 +4,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, literal_column
 
-from app.models.warehouse.pagos.fact_pagos import FactPagos
-from app.models.warehouse.pagos.dim_estados_conciliacion import DimEstadosConciliacion
+from app.pagos.models.fact_pagos import FactPagos
+from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
 
 
 def _module_case():

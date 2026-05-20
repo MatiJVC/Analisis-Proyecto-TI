@@ -4,7 +4,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import FactPayment, DimStatus
+from app.pagos.models.fact_payments import FactPayment
+from app.pagos.models.dim_status import DimStatus
 
 
 PAYMENT_STATUS_NAMES = [

@@ -14,9 +14,9 @@ from app.models.warehouse import (
     FactVisitas,
     FactAlertas,
     FactFichasClinicas,
-    FactPaymentsEvent,
 )
 from app.models.warehouse.alerts import PriorityAlert
+from app.pagos.models.fact_payments_events import FactPaymentsEvent
 from app.api import events_router, kpis_router, analytics_router
 _ = (
     RawEvent,
@@ -30,8 +30,8 @@ _ = (
     FactVisitas,
     FactAlertas,
     FactFichasClinicas,
+    FactPaymentsEvent,
 )
-from app.models.warehouse.pagos.fact_payments_events import FactPaymentsEvent
 
 Base.metadata.create_all(bind=engine)
 

@@ -29,7 +29,7 @@ const navigation = [
   { name: 'Suscripciones', href: '/subscriptions', icon: RefreshCw },
   { name: 'Notificaciones', href: '/notifications', icon: Bell },
   { name: 'IoT', href: '/iot', icon: Cpu },
-  { name: 'Pagos', href: '/payments', icon: CreditCard },
+  { name: 'Pagos', href: '/pagos', icon: CreditCard },
   { name: 'Logística', href: '/logistics', icon: Truck },
   { name: 'Inventario', href: '/inventory', icon: Package },
   { name: 'CRM', href: '/crm', icon: Users },
