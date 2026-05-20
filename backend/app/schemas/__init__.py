@@ -1,5 +1,6 @@
 from .event_schema import EventCreate, EventResponse, EventCreateResponse
 from .kpi_schema import KPIResponse, SubscriptionStats, SubscriptionSummary
+from .subscription_analytics_schema import SubscriptionTimelineResponse, SubscriptionTimelinePoint
 
 __all__ = [
     "EventCreate", 
@@ -7,5 +8,7 @@ __all__ = [
     "EventCreateResponse",
     "KPIResponse",
     "SubscriptionStats",
-    "SubscriptionSummary"
+    "SubscriptionSummary",
+    "SubscriptionTimelineResponse",
+    "SubscriptionTimelinePoint"
 ]

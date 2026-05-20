@@ -8,13 +8,18 @@ from app.schemas.orders_analytics_schema import (
     KPISResponse, ChannelsResponse, StatusResponse, TimelineResponse,
     ChannelMetric, StatusMetric
 )
-from app.analytics import (
+from app.schemas.subscription_analytics_schema import (
+    SubscriptionTimelineResponse, SubscriptionTimelinePoint
+)
+from app.analytics.subscription_kpis import (
     get_renewal_rate,
     get_error_rate,
     get_auto_service_rate,
-    get_subscription_summary
+    get_subscription_summary,
+    get_subscriptions_by_date,
+    get_all_retention_rates
 )
-from app.services.orders_analytics_service import (
+from app.analytics.orders_kpis import (
     get_all_kpis,
     get_orders_by_channel,
     get_orders_by_status,
@@ -136,23 +141,111 @@ async def get_auto_service_rate_endpoint(
     "/subscriptions/summary",
     response_model=SubscriptionSummary,
     summary="Obtener resumen de KPIs de suscripciones",
-    description="Retorna todos los KPIs de suscripciones en un solo endpoint"
+    description="Retorna todos los KPIs de suscripciones. Puede filtrar por período de días"
 )
 async def get_subscription_summary_endpoint(
+    days: int = 30,
     db: Session = Depends(get_db)
 ) -> SubscriptionSummary:
     try:
-        summary = get_subscription_summary(db)
+        if days < 1 or days > 365:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Days must be between 1 and 365"
+            )
+        
+        summary = get_subscription_summary(db, days)
         return SubscriptionSummary(
             renewal_rate=summary["renewal_rate"],
             error_rate=summary["error_rate"],
             auto_service_rate=summary["auto_service_rate"],
             stats=summary["stats"]
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error calculando resumen: {str(e)}"
+        )
+
+
+@router.get(
+    "/subscriptions/timeline",
+    response_model=SubscriptionTimelineResponse,
+    summary="Línea de tiempo de suscripciones",
+    description="Obtiene línea de tiempo de suscripciones agrupada por fecha (nuevas, renovaciones, cancelaciones)"
+)
+async def get_subscriptions_timeline(days: int = 30, db: Session = Depends(get_db)) -> SubscriptionTimelineResponse:
+    try:
+        if days < 1 or days > 365:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Days must be between 1 and 365"
+            )
+        
+        timeline_data = get_subscriptions_by_date(db, days)
+        
+        # Devuelve respuesta válida incluso si no hay datos
+        total_subscriptions = sum(
+            point["new_subscriptions"] + point["renewals"] + point["cancellations"]
+            for point in timeline_data
+        ) if timeline_data else 0
+        
+        start_date = (datetime.utcnow() - timedelta(days=days)).date().isoformat()
+        end_date = datetime.utcnow().date().isoformat()
+        
+        timeline_points = [
+            SubscriptionTimelinePoint(
+                date=point["date"],
+                new_subscriptions=point["new_subscriptions"],
+                renewals=point["renewals"],
+                cancellations=point["cancellations"]
+            )
+            for point in timeline_data
+        ] if timeline_data else []
+        
+        return SubscriptionTimelineResponse(
+            start_date=start_date,
+            end_date=end_date,
+            total_subscriptions=total_subscriptions,
+            timeline=timeline_points
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error calculating subscriptions timeline: {str(e)}"
+        )
+
+
+@router.get(
+    "/subscriptions/retention",
+    summary="Tasas de retención de suscripciones",
+    description="Retorna retention rates para 30 días, 90 días y período anual (365 días)"
+)
+async def get_subscriptions_retention(db: Session = Depends(get_db)):
+    try:
+        retention_data = get_all_retention_rates(db)
+        
+        return {
+            "retention_rates": {
+                "30_days": retention_data["retention_30_days"],
+                "90_days": retention_data["retention_90_days"],
+                "annual": retention_data["retention_annual"]
+            },
+            "description": {
+                "30_days": f"De las suscripciones activas hace 30 días, {retention_data['retention_30_days']}% siguen activas",
+                "90_days": f"De las suscripciones activas hace 90 días, {retention_data['retention_90_days']}% siguen activas",
+                "annual": f"De las suscripciones activas hace 1 año, {retention_data['retention_annual']}% siguen activas"
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error calculando retention rates: {str(e)}"
         )
 
 
@@ -322,7 +415,7 @@ async def get_orders_timeline(days: int = 30, db: Session = Depends(get_db)) -> 
                     "avg_order_value": point["avg_order_value"]
                 }
                 for point in timeline_data
-            ]
+            ]  # ty:ignore[invalid-argument-type]
         )
     
     except HTTPException:

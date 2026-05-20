@@ -1,8 +1,9 @@
 """
-Service para cálculos analíticos del dominio Orders.
+KPIs para cálculos analíticos del dominio Orders.
 
 Contiene funciones para calcular KPIs desde fact_orders.
 """
+from certifi import where
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date, Integer
@@ -101,7 +102,9 @@ def get_avg_processing_time(db: Session) -> float:
 
 def get_revenue_total(db: Session) -> float:
     """Calcula ingresos totales."""
-    total = db.query(func.sum(FactOrder.total_amount)).scalar() or 0.0
+    total = db.query(func.sum(FactOrder.total_amount)).filter(
+        FactOrder.payment_success == True
+    ).scalar() or 0.0
     return round(float(total), 2)
 
 

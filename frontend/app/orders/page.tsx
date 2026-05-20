@@ -115,18 +115,18 @@ export default function OrdersPage() {
               />
               <KPICard
                 title="Cantidad total de pedidos procesados."
-                value={kpis?.total_orders ?? 0}
+                value={kpis?.total_orders  ?? 0}
                 icon={<ShoppingCart className="h-5 w-5" />}
               />
               <KPICard
                 title="Porcentaje de pedidos entregados correctamente."
-                value={kpis?.delivery_rate ?? 0}
+                value={((kpis?.delivery_rate ?? 0) * 100)}
                 format="percentage"
                 icon={<Truck className="h-5 w-5" />}
               />
               <KPICard
                 title="Pedidos que cumplieron tiempos SLA."
-                value={kpis?.sla_compliance ?? 0}
+                value={((kpis?.sla_compliance ?? 0) * 100)}
                 format="percentage"
                 icon={<Target className="h-5 w-5" />}
               />
@@ -140,21 +140,21 @@ export default function OrdersPage() {
 
               <KPICard
                 title="Tasa de reserva de stock"
-                value={kpis?.stock_reservation_rate ?? 0}
+                value={((kpis?.stock_reservation_rate ?? 0) * 100)}
                 format="percentage"
                 icon={<CheckCircle className="h-5 w-5" />}
               />
 
               <KPICard
                 title="Pedidos completados exitosamente de punta a punta."
-                value={kpis?.fulfillment_rate ?? 0}
+                value={((kpis?.fulfillment_rate ?? 0) * 100)}
                 format="percentage"
                 icon={<CheckCircle className="h-5 w-5" />}
               />
 
               <KPICard
                 title="Tasa de pagos fallidos"
-                value={kpis?.payment_failure_rate ?? 0}
+                value={((kpis?.payment_failure_rate ?? 0) * 100)}
                 format="percentage"
                 icon={<BanknoteX className="h-5 w-5" />}
               />
@@ -167,7 +167,7 @@ export default function OrdersPage() {
 
               <KPICard
                 title="Tasa de pagos exitosos"
-                value={kpis?.payment_success_rate ?? 0}
+                value={((kpis?.payment_success_rate ?? 0) * 100)}
                 format="percentage"
                 icon={<BanknoteArrowUp className="h-5 w-5" />}
               />

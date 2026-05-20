@@ -41,7 +41,7 @@ export function Topbar({ className }: TopbarProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem>Última hora</DropdownMenuItem>
-            <DropdownMenuItem>Últimas 6 hours</DropdownMenuItem>
+            <DropdownMenuItem>Últimas 6 horas</DropdownMenuItem>
             <DropdownMenuItem>Últimas 24 hours</DropdownMenuItem>
             <DropdownMenuItem>Últimos 7 days</DropdownMenuItem>
             <DropdownMenuItem>Últimos 30 days</DropdownMenuItem>

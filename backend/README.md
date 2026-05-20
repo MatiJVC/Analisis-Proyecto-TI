@@ -196,13 +196,18 @@ POST http://localhost:8000/events
     "contract_id": "CTR-7000",
     "user_id": 700,
     "plan_id": 3,
-    "start_date": "2026-05-09"
+    "start_date": "2026-05-09",
+    "status": "active",
+    "renewed": true,
+    "auto_service": true,
+    "billing_success": true,
+    "end_date": null
   }
 }
 ```
 **Campos obligatorios:** `contract_id`, `user_id`, `plan_id`  
-**Campos opcionales:** `start_date`  
-**Resultado:** Crea nuevo registro en `fact_subscriptions` con estado `active`
+**Campos opcionales:** `start_date`, `status`, `renewed`, `auto_service`, `billing_success`, `end_date`  
+**Resultado:** Crea nuevo registro en `fact_subscriptions`. Si se proporcionan `renewed`, `auto_service` y `billing_success`, estos se persisten inmediatamente. Estos campos también pueden actualizarse posteriormente con eventos como `renewal_success`, `payment_success`, etc.
 
 ---
 
@@ -219,7 +224,7 @@ POST http://localhost:8000/events
 }
 ```
 **Campos obligatorios:** `contract_id`, `user_id`, `plan_id`  
-**Resultado:** Actualiza `renewed=TRUE`
+**Resultado:** Actualiza `renewed=TRUE` en el registro existente con ese `contract_id`
 
 ---
 
@@ -236,7 +241,7 @@ POST http://localhost:8000/events
 }
 ```
 **Campos obligatorios:** `contract_id`, `user_id`, `plan_id`  
-**Resultado:** Actualiza `renewed=FALSE`
+**Resultado:** Actualiza `renewed=FALSE` en el registro existente con ese `contract_id`
 
 ---
 
@@ -324,7 +329,9 @@ GET http://localhost:8000/kpis/orders/health
 GET http://localhost:8000/kpis/subscriptions/renewal-rate
 GET http://localhost:8000/kpis/subscriptions/error-rate
 GET http://localhost:8000/kpis/subscriptions/auto-service-rate
-GET http://localhost:8000/kpis/subscriptions/summary
+GET http://localhost:8000/kpis/subscriptions/summary?days=30
+GET http://localhost:8000/kpis/subscriptions/timeline?days=30
+GET http://localhost:8000/kpis/subscriptions/retention
 ```
 
 ---
