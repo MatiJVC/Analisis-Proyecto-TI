@@ -25,17 +25,17 @@ import { useState } from 'react'
 
 const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
-  { name: 'Pedidos', href: '/orders', icon: ShoppingCart },
-  { name: 'Suscripciones', href: '/subscriptions', icon: RefreshCw },
-  { name: 'Notificaciones', href: '/notifications', icon: Bell },
+  { name: 'Orders', href: '/orders', icon: ShoppingCart },
+  { name: 'Subscriptions', href: '/subscriptions', icon: RefreshCw },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'IoT', href: '/iot', icon: Cpu },
-  { name: 'Pagos', href: '/payments', icon: CreditCard },
-  { name: 'Logística', href: '/logistics', icon: Truck },
-  { name: 'Inventario', href: '/inventory', icon: Package },
+  { name: 'Payments', href: '/payments', icon: CreditCard },
+  { name: 'Logistics', href: '/logistics', icon: Truck },
+  { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'CRM', href: '/crm', icon: Users },
-  { name: 'Incidentes', href: '/incidents', icon: AlertTriangle },
-  { name: 'Salud', href: '/health', icon: Heart },
-  { name: 'Identidad', href: '/security', icon: Shield },
+  { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
+  { name: 'Health', href: '/health', icon: Heart },
+  { name: 'Security', href: '/security', icon: Shield },
 ]
 
 interface SidebarProps {
@@ -62,7 +62,7 @@ export function Sidebar({ className }: SidebarProps) {
               <Activity className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="text-lg font-semibold text-foreground">
-              Codex-Analytics
+              Analytics
             </span>
           </Link>
         )}
