@@ -1,36 +1,31 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any
+from typing import Any, Dict, Literal
+from uuid import UUID
 from datetime import datetime
 
 
 class EventCreate(BaseModel):
-
     source: str = Field(
         ...,
         min_length=1,
         max_length=50,
-        description="Fuente del evento (ej: subscriptions, orders, iot_devices, notifications)",
-        example="subscriptions"
+        description="Proyecto origen del evento (ej: subscriptions, orders, salud, incidents)",
     )
     event_type: str = Field(
         ...,
         min_length=1,
         max_length=100,
-        description="Tipo de evento específico (ej: renewal_success, creation_failed)",
-        example="renewal_success"
+        description="Tipo de evento específico (ej: renewal_success, order_placed)",
     )
+    # Dict[str, Any] acepta cualquier estructura JSON válida sin romper el schema.
+    # Usa default_factory=dict para que proyectos sin payload no fallen la validación.
     payload: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Datos del evento en formato JSON",
-        example={
-            "contract_id": 1,
-            "user_id": 10,
-            "plan_id": 2
-        }
+        description="Cuerpo libre del evento — cualquier objeto JSON válido",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "source": "subscriptions",
                 "event_type": "renewal_success",
@@ -39,37 +34,44 @@ class EventCreate(BaseModel):
                     "user_id": 10,
                     "plan_id": 2,
                     "renewal_date": "2026-05-08",
-                    "status": "completed"
-                }
+                    "status": "completed",
+                },
             }
         }
+    }
+
+
+class AcknowledgeResponse(BaseModel):
+    """Respuesta 202 — confirma recepción sin esperar procesamiento ETL."""
+    status: Literal["acknowledged"]
+    event_id: UUID
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "status": "acknowledged",
+                "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            }
+        }
+    }
 
 
 class EventResponse(BaseModel):
-    id: int
+    event_id: UUID
     source: str
     event_type: str
     payload: Dict[str, Any] | None = None
     processed: bool
-    created_at: datetime
+    ingested_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
+# Kept for backward compatibility with any existing callers
 class EventCreateResponse(BaseModel):
     message: str
-    event_id: int
+    event_id: UUID
     source: str
     event_type: str
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "message": "event stored",
-                "event_id": 1,
-                "source": "subscriptions",
-                "event_type": "renewal_success"
-            }
-        }
+    model_config = {"from_attributes": True}
