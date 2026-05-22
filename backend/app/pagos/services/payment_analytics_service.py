@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
 from app.pagos.models.fact_payments_events import FactPaymentsEvent
+from app.pagos.services.sla_service import compute_uptime, check_sla_and_alert
 
 # States that represent a completed failure (not pending, not approved)
 _FAILURE_STATES = ("discrepancia_de_monto", "discrepancia_de_transacciones")
@@ -60,9 +61,10 @@ def get_payment_kpis(db: Session, hours: int = 24) -> Dict[str, Any]:
     failure_rate: float = round((failed_payments / total_transactions * 100.0) if total_transactions else 0.0, 4)
     avg_transaction_value: float = round(revenue / approved_count if approved_count else 0.0, 2)
 
-    # Uptime simulation: network/timeout errors are ~1/6 of all failures.
-    # uptime = 100 − (failure_rate / 6).  Example: 0.9 / 6 = 0.15 → 99.85 %
-    uptime: float = round(max(95.0, 100.0 - failure_rate / 6.0), 4)
+    # Uptime real calculado desde fact_sla_events.
+    # Si cae bajo el umbral SLA (99.5%) se escribe una PriorityAlert.
+    uptime: float = compute_uptime(db, hours)
+    check_sla_and_alert(db, uptime, hours)
 
     return {
         "totalTransactions": total_transactions,

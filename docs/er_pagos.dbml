@@ -1,0 +1,138 @@
+// ER Diagram - Módulo Pagos (Star Schema)
+// Importar en https://dbdiagram.io para visualizar
+
+// ─── TABLAS FACT ──────────────────────────────────────────────────────────────
+
+Table fact_pagos {
+  transaction_id         uuid           [pk, note: "UUID autogenerado"]
+  order_id               varchar(255)   [null, note: "Vinculación con Grupo 3 (Órdenes)"]
+  subscription_id        varchar(255)   [null, note: "Vinculación con Grupo 10 (Suscripciones)"]
+  monto                  decimal(18,2)  [not null]
+  token_transaccion      varchar(255)   [not null, note: "Token emitido en crear_pago, requerido en confirmar_pago"]
+  error_code_id          int            [null, ref: > dim_error_codes.id]
+  timestamp_evento       timestamptz    [not null]
+  estado_conciliacion_id int            [not null, ref: > dim_estados_conciliacion.id]
+
+  indexes {
+    (transaction_id, order_id, timestamp_evento) [name: "idx_fact_pagos_tx_order_ts"]
+  }
+}
+
+
+Table fact_payments_events {
+  id               bigint         [pk, increment, note: "Registro inmutable – audit trail"]
+  transaction_id   uuid           [not null]
+  order_id         varchar(255)   [null]
+  subscription_id  varchar(255)   [null]
+  amount           decimal(18,2)  [not null]
+  token_transaccion varchar(255)  [not null]
+  codigo_error     varchar(100)   [null]
+  status           varchar(100)   [not null, note: "CHECK: Aprobado | esperando_revisión | discrepancia_de_monto | discrepancia_de_transacciones"]
+  timestamp_evento timestamptz    [not null]
+
+  indexes {
+    (transaction_id, token_transaccion, timestamp_evento) [name: "idx_fact_payments_events_tx_token_ts"]
+  }
+
+  Note: "Tabla inmutable de auditoría. INSERT-only, sin UPDATE/DELETE."
+}
+
+Table fact_sla_events {
+  id                  int          [pk, increment]
+  timestamp_inicio    timestamptz  [not null, note: "Inicio del evento de indisponibilidad"]
+  timestamp_fin       timestamptz  [null, note: "NULL = evento activo en este momento"]
+  tipo                varchar(20)  [not null, note: "CHECK: 'downtime' | 'degraded'"]
+  duracion_segundos   int          [null, note: "Calculado al cerrar el evento"]
+  descripcion         varchar(512) [null]
+  created_at          timestamptz  [not null]
+
+  indexes {
+    (timestamp_inicio, timestamp_fin) [name: "idx_sla_events_inicio_fin"]
+  }
+
+  Note: '''
+  Fuente de verdad para el cálculo de uptime SLA.
+  Uptime = (ventana_seg - downtime_seg) / ventana_seg * 100.
+  Si uptime < 99.5% se escribe una PriorityAlert crítica (deduplicada cada 2h).
+  '''
+}
+
+Table cierre_diario {
+  id               int            [pk, increment]
+  fecha            date           [not null]
+  reported_total   decimal(18,2)  [not null, note: "Monto reportado por el gateway"]
+  reported_count   int            [not null, note: "Transacciones reportadas por el gateway"]
+  internal_total   decimal(18,2)  [null, note: "Monto total calculado internamente"]
+  internal_count   int            [null, note: "Transacciones reales del sistema"]
+  estado_id        int            [not null, ref: > dim_estados_conciliacion.id]
+  processed_at     timestamp      [null]
+  duration_seconds int            [null]
+  note             varchar(1024)  [null, note: "Detalle de discrepancias o notas del cierre"]
+
+  Note: "Evento cierre_diario_completado. Dispara reportes de cierre."
+}
+
+// ─── TABLAS DIMENSION ─────────────────────────────────────────────────────────
+
+Table dim_error_codes {
+  id               int          [pk, increment]
+  code             varchar(100) [not null, unique]
+  descripcion      varchar(255) [not null]
+  categoria        varchar(50)  [not null, note: "proveedor | tarjeta | validacion | interno"]
+  es_falla_masiva  boolean      [not null, default: false, note: "True si múltiples ocurrencias indican falla masiva del proveedor"]
+
+  Note: '''
+  Catálogo oficial de códigos estandarizados.
+  Categoría "proveedor" con es_falla_masiva=true se usa para alertas SLA.
+  Valores: transaction_mismatch, rejected, insufficient_funds, card_expired,
+  card_blocked, card_not_supported, provider_timeout, provider_unavailable,
+  provider_error, duplicate_transaction, invalid_amount, internal_error
+  '''
+}
+
+Table dim_estados_conciliacion {
+  id     int          [pk, increment]
+  nombre varchar(100) [not null, unique]
+
+  Note: "Valores: Aprobado | esperando_revisión | discrepancia_de_monto | discrepancia_de_transacciones"
+}
+
+
+// ─── TABLAS EXTERNAS (otros grupos) ───────────────────────────────────────────
+
+Table fact_orders {
+  id                      int          [pk]
+  order_id                int          [not null, unique, note: "Business key – referenciado por fact_payments"]
+  customer_id             int          [not null]
+  sales_channel           varchar(50)  [not null]
+  status                  varchar(50)  [not null]
+  total_amount            float        [not null, default: 0.0]
+  total_items             int          [not null, default: 0]
+  payment_success         boolean      [default: false]
+  stock_reserved          boolean      [default: false]
+  delivery_completed      boolean      [default: false]
+  processing_time_seconds int          [null]
+  created_at              timestamp    [not null]
+  updated_at              timestamp    [not null]
+
+  Note: "Grupo 3 – Órdenes. Referenciada por fact_payments.order_id."
+}
+
+Table fact_subscriptions {
+  id               int          [pk]
+  contract_id      varchar(50)  [not null, unique]
+  user_id          int          [not null]
+  plan_id          int          [not null]
+  status           varchar(20)  [not null]
+  start_date       date         [not null]
+  end_date         date         [null]
+  renewed          boolean      [default: false]
+  auto_service     boolean      [default: false]
+  billing_success  boolean      [default: false]
+  billing_attempts int          [default: 0]
+  billing_date     timestamp    [null]
+  created_at       timestamp    [not null]
+  updated_at       timestamp    [not null]
+
+  Note: "Grupo 10 – Suscripciones. Referenciada por fact_payments.subscription_id."
+}

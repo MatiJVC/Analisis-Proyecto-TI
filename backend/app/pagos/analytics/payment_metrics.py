@@ -6,6 +6,7 @@ from sqlalchemy import func, case, literal_column
 
 from app.pagos.models.fact_pagos import FactPagos
 from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
+from app.pagos.models.dim_error_codes import DimErrorCode
 
 
 def _module_case():
@@ -131,22 +132,23 @@ def get_rejection_rate_and_top_reasons(db: Session, start: datetime, end: dateti
 
     rejection_rate = float(failed) / float(total) * 100.0 if total else 0.0
 
-    # Top reasons by codigo_error
+    # Top reasons by error code — join dim_error_codes to get the code string
     reasons_q = (
-        db.query(FactPagos.codigo_error, func.count(FactPagos.transaction_id).label("cnt"))
+        db.query(DimErrorCode.code, func.count(FactPagos.transaction_id).label("cnt"))
         .join(DimEstadosConciliacion, FactPagos.estado_conciliacion_id == DimEstadosConciliacion.id)
+        .join(DimErrorCode, FactPagos.error_code_id == DimErrorCode.id)
         .filter(
             DimEstadosConciliacion.nombre != "Aprobado",
             FactPagos.timestamp_evento >= start,
             FactPagos.timestamp_evento <= end,
-            FactPagos.codigo_error != None,
+            FactPagos.error_code_id != None,
         )
-        .group_by(FactPagos.codigo_error)
+        .group_by(DimErrorCode.code)
         .order_by(func.count(FactPagos.transaction_id).desc())
         .limit(top_n)
     )
 
-    top_reasons = [(row.codigo_error, int(row.cnt)) for row in reasons_q]
+    top_reasons = [(row.code, int(row.cnt)) for row in reasons_q]
 
     return {
         "rejection_rate": rejection_rate,

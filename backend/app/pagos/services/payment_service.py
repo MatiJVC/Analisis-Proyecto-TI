@@ -1,10 +1,9 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from typing import Optional
-from sqlalchemy.orm import Session
 
 from app.pagos.models.fact_pagos import FactPagos
 from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
+from app.pagos.models.dim_error_codes import get_error_code_id
 
 
 ALLOWED_ESTADOS = [
@@ -36,7 +35,7 @@ def register_payment_attempt(db: Session, payload: dict) -> FactPagos:
             subscription_id=payload.get("subscription_id"),
             monto=payload["monto"],
             token_transaccion=payload["token_transaccion"],
-            codigo_error=None,
+            error_code_id=None,
             timestamp_evento=payload["timestamp_evento"],
             estado_conciliacion_id=estado.id,
         )
@@ -52,7 +51,6 @@ def register_payment_attempt(db: Session, payload: dict) -> FactPagos:
 def confirm_payment(db: Session, token: str, confirmation: dict) -> FactPagos:
     """Confirma un pago buscando por token; usa bloqueo FOR UPDATE para evitar race conditions."""
     try:
-        # lock the row when selecting
         fact = (
             db.query(FactPagos)
             .filter(FactPagos.token_transaccion == token)
@@ -63,16 +61,14 @@ def confirm_payment(db: Session, token: str, confirmation: dict) -> FactPagos:
         if not fact:
             raise ValueError("No payment found for provided token")
 
-        # Basic consistency validation
         incoming_tx = confirmation.get("transaction_id")
         approved = confirmation.get("approved")
-        codigo_error = confirmation.get("codigo_error")
+        raw_codigo_error = confirmation.get("codigo_error")
 
         if incoming_tx and str(incoming_tx) != str(fact.transaction_id):
-            # transaction mismatch
             estado = get_or_create_estado(db, "discrepancia_de_transacciones")
             fact.estado_conciliacion_id = estado.id
-            fact.codigo_error = "transaction_mismatch"
+            fact.error_code_id = get_error_code_id(db, "transaction_mismatch")
             fact.timestamp_evento = confirmation.get("timestamp_evento", fact.timestamp_evento)
             db.flush()
             return fact
@@ -80,11 +76,11 @@ def confirm_payment(db: Session, token: str, confirmation: dict) -> FactPagos:
         if approved:
             estado = get_or_create_estado(db, "Aprobado")
             fact.estado_conciliacion_id = estado.id
-            fact.codigo_error = None
+            fact.error_code_id = None
         else:
             estado = get_or_create_estado(db, "discrepancia_de_monto")
             fact.estado_conciliacion_id = estado.id
-            fact.codigo_error = codigo_error or "rejected"
+            fact.error_code_id = get_error_code_id(db, raw_codigo_error or "rejected")
 
         fact.timestamp_evento = confirmation.get("timestamp_evento", fact.timestamp_evento)
         db.flush()

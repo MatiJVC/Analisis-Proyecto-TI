@@ -4,15 +4,16 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.pagos.models.fact_payments import FactPayment
-from app.pagos.models.dim_status import DimStatus
+from app.pagos.models.fact_pagos import FactPagos
+from app.pagos.models.dim_error_codes import get_error_code_id
+from app.pagos.services.payment_service import get_or_create_estado
 
 
 PAYMENT_STATUS_NAMES = [
-    "aprobado",
+    "Aprobado",
     "esperando_revisión",
-    "discrepancia_monto",
-    "discrepancia_transacciones",
+    "discrepancia_de_monto",
+    "discrepancia_de_transacciones",
 ]
 
 
@@ -24,7 +25,7 @@ def _normalize_error_code(error_code: Optional[str]) -> Optional[str]:
 
 def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
     if event_type == "pago_exitoso":
-        return "aprobado"
+        return "Aprobado"
 
     if event_type == "intento_pago":
         return "esperando_revisión"
@@ -34,24 +35,15 @@ def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
         if normalized:
             lower_code = normalized.lower()
             if "monto" in lower_code or "amount" in lower_code:
-                return "discrepancia_monto"
+                return "discrepancia_de_monto"
             if "transaccion" in lower_code or "transaction" in lower_code:
-                return "discrepancia_transacciones"
+                return "discrepancia_de_transacciones"
         return "esperando_revisión"
 
     return "esperando_revisión"
 
 
-def _get_or_create_status(db: Session, name: str) -> DimStatus:
-    status = db.query(DimStatus).filter(DimStatus.name == name).first()
-    if not status:
-        status = DimStatus(name=name, description=f"Estado de pago: {name}")
-        db.add(status)
-        db.flush()
-    return status
-
-
-def process_payment_event(db: Session, raw_event) -> FactPayment:
+def process_payment_event(db: Session, raw_event) -> FactPagos:
     payload = raw_event.payload or {}
     transaction_token = payload.get("transaction_token")
     if not transaction_token:
@@ -71,7 +63,7 @@ def process_payment_event(db: Session, raw_event) -> FactPayment:
     error_code = _normalize_error_code(payload.get("error_code"))
 
     status_name = _resolve_status_name(raw_event.event_type, error_code)
-    status_obj = _get_or_create_status(db, status_name)
+    estado = get_or_create_estado(db, status_name)
 
     timestamp = payload.get("timestamp")
     if timestamp:
@@ -82,16 +74,17 @@ def process_payment_event(db: Session, raw_event) -> FactPayment:
     else:
         timestamp = datetime.utcnow()
 
-    fact_payment = FactPayment(
+    fact = FactPagos(
         transaction_id=transaction_id,
-        order_id=order_id,
-        subscription_id=subscription_id,
-        amount=float(amount),
-        status_id=status_obj.id,
-        error_code=error_code,
-        timestamp=timestamp,
+        order_id=str(order_id) if order_id is not None else None,
+        subscription_id=str(subscription_id) if subscription_id is not None else None,
+        monto=amount,
+        token_transaccion=str(transaction_token),
+        error_code_id=get_error_code_id(db, error_code),
+        timestamp_evento=timestamp,
+        estado_conciliacion_id=estado.id,
     )
 
-    db.add(fact_payment)
+    db.add(fact)
     db.flush()
-    return fact_payment
+    return fact

@@ -4,8 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.pagos.schemas.payment_analytics_schema import PaymentKPIsResponse, PaymentTimelinePoint
+from app.pagos.schemas.payment_analytics_schema import (
+    PaymentKPIsResponse,
+    PaymentTimelinePoint,
+    SlaStatusResponse,
+)
 from app.pagos.services.payment_analytics_service import get_payment_kpis, get_payment_timeline
+from app.pagos.services.sla_service import get_sla_status
 
 router = APIRouter(
     prefix="/analytics",
@@ -21,8 +26,8 @@ router = APIRouter(
     description=(
         "Consulta fact_payments_events y retorna métricas agregadas del rolling window "
         "indicado (default: últimas 24 h). "
-        "Campos: totalTransactions, failedPayments, failureRate, revenue, "
-        "avgTransactionValue, uptime."
+        "El campo uptime refleja disponibilidad real desde fact_sla_events; "
+        "si cae bajo 99.5% se registra automáticamente una alerta crítica."
     ),
 )
 async def get_payments_kpis(
@@ -61,4 +66,29 @@ async def get_payments_timeline(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error calculando timeline de pagos: {exc}",
+        )
+
+
+@router.get(
+    "/payments/sla",
+    response_model=SlaStatusResponse,
+    summary="Estado SLA del servicio de pagos",
+    description=(
+        "Calcula el uptime real desde fact_sla_events para la ventana indicada. "
+        "Si el uptime cae bajo 99.5% se registra automáticamente una PriorityAlert crítica "
+        "(deduplicada: máximo una alerta cada 2 horas). "
+        "Retorna eventos de downtime activos y alertas SLA no reconocidas de las últimas 24h."
+    ),
+)
+async def get_payments_sla(
+    hours: int = Query(default=24, ge=1, le=720, description="Ventana en horas (1–720, default 24)"),
+    db: Session = Depends(get_db),
+) -> SlaStatusResponse:
+    try:
+        data = get_sla_status(db, hours=hours)
+        return SlaStatusResponse(**data)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error consultando estado SLA: {exc}",
         )
