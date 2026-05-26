@@ -60,16 +60,24 @@ export function useNotificationChannels() {
 }
 
 // IoT hooks
-export function useIoTKPIs() {
-  return useSWR('iot-kpis', iotAPI.getKPIs, swrConfig)
+export function useIoTKPIs(days: number = 30) {
+  return useSWR(`iot-kpis-${days}`, () => iotAPI.getKPIs(days), swrConfig)
 }
 
-export function useIoTDevices() {
-  return useSWR('iot-devices', iotAPI.getDevices, swrConfig)
+export function useIoTDevices(days: number = 30) {
+  return useSWR(`iot-devices-${days}`, () => iotAPI.getDevices(days), swrConfig)
 }
 
-export function useIoTAlerts() {
-  return useSWR('iot-alerts', iotAPI.getAlerts, swrConfig)
+export function useIoTAlerts(days: number = 30, limit: number = 50) {
+  return useSWR(`iot-alerts-${days}-${limit}`, () => iotAPI.getAlerts(days, limit), swrConfig)
+}
+
+export function useIoTSensorsByType(days: number = 30) {
+  return useSWR(`iot-sensors-by-type-${days}`, () => iotAPI.getSensorsByType(days), swrConfig)
+}
+
+export function useIoTTimeline(days: number = 30) {
+  return useSWR(`iot-timeline-${days}`, () => iotAPI.getTimeline(days), swrConfig)
 }
 
 // Incidents hooks

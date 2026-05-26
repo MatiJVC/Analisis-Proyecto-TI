@@ -733,14 +733,14 @@ async def get_overview_alerts_endpoint(
     "/iot/kpis",
     response_model=SensorKPIs,
     summary="KPIs consolidados de sensores IoT",
-    description="Retorna todos los KPIs principales del dominio IoT. Puede filtrar por período de días"
+    description="Retorna todos los KPIs principales. Algunos son real-time (siempre actual), otros pueden filtrarse por días"
 )
 async def get_iot_kpis_endpoint(
-    days: int = 30,
+    days: int = None,
     db: Session = Depends(get_db)
 ) -> SensorKPIs:
     try:
-        if days < 1 or days > 365:
+        if days is not None and (days < 1 or days > 365):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Days must be between 1 and 365"
@@ -773,20 +773,20 @@ async def get_iot_kpis_endpoint(
     "/iot/status",
     response_model=SensorsStatusResponse,
     summary="Estado actual de sensores",
-    description="Obtiene estado de todos los sensores IoT (online, battery, última lectura, etc)"
+    description="Obtiene estado actual de todos los sensores IoT (online, battery, última lectura, etc). El parámetro days es opcional e informativo"
 )
 async def get_iot_sensors_status(
-    days: int = 30,
+    days: int = None,
     db: Session = Depends(get_db)
 ) -> SensorsStatusResponse:
     try:
-        if days < 1 or days > 365:
+        if days is not None and (days < 1 or days > 365):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Days must be between 1 and 365"
             )
         
-        status_data = get_sensors_status(db, days)
+        status_data = get_sensors_status(db)
         
         sensors_list = [
             SensorStatus(
@@ -826,20 +826,20 @@ async def get_iot_sensors_status(
     "/iot/by-type",
     response_model=SensorsByTypeResponse,
     summary="Distribución de sensores por tipo",
-    description="Obtiene distribución y estado de sensores agrupados por tipo"
+    description="Obtiene distribución y estado actual de sensores agrupados por tipo. El parámetro days es opcional e informativo"
 )
 async def get_iot_sensors_by_type(
-    days: int = 30,
+    days: int = None,
     db: Session = Depends(get_db)
 ) -> SensorsByTypeResponse:
     try:
-        if days < 1 or days > 365:
+        if days is not None and (days < 1 or days > 365):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Days must be between 1 and 365"
             )
         
-        types_data = get_sensors_by_type(db, days)
+        types_data = get_sensors_by_type(db)
         
         types_list = [
             SensorTypeMetric(

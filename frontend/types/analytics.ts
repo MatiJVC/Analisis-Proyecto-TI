@@ -128,28 +128,52 @@ export interface NotificationStatus {
 
 // IoT
 export interface IoTKPIs {
-  activeSensors: number
-  totalAlerts: number
-  avgLatency: number
-  invalidPackets: number
-  uptime: number
+  total_sensors: number
+  online_sensors: number
+  offline_sensors: number
+  availability_rate: number
+  avg_battery_level: number
+  low_battery_count: number
+  data_validity_rate: number
+  anomalies_detected: number
+  avg_processing_latency_ms: number
 }
 
 export interface IoTDevice {
-  id: string
-  name: string
-  status: 'online' | 'offline' | 'warning'
-  lastSeen: string
-  batteryLevel: number
+  sensor_id: string
+  asset_id: string
+  sensor_type: string
+  is_online: boolean
+  battery_level?: number
+  last_reading_at?: string
+  location?: string
+  has_anomaly: boolean
+  low_battery_alert: boolean
+}
+
+export interface SensorsStatusResponse {
+  total_sensors: number
+  online_count: number
+  offline_count: number
+  sensors: IoTDevice[]
 }
 
 export interface IoTAlert {
-  id: string
-  deviceId: string
-  type: string
+  event_id: string
+  sensor_id: string
+  event_type: string
   severity: 'critical' | 'warning' | 'info'
   message: string
   timestamp: string
+  data?: any
+}
+
+export interface EventsResponse {
+  total_events: number
+  critical_count: number
+  warning_count: number
+  info_count: number
+  events: IoTAlert[]
 }
 
 // Incidents

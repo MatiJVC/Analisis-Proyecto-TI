@@ -45,9 +45,11 @@ export const notificationsAPI = {
 
 // IoT API
 export const iotAPI = {
-  getKPIs: () => fetchAPI('/analytics/iot/kpis', mockData.iotKPIs),
-  getDevices: () => fetchAPI('/analytics/iot/devices', mockData.iotDevices),
-  getAlerts: () => fetchAPI('/analytics/iot/alerts', mockData.iotAlerts),
+  getKPIs: (days: number = 30) => fetchAPI(`/kpis/iot/kpis?days=${days}`, mockData.iotKPIs),
+  getDevices: (days: number = 30) => fetchAPI(`/kpis/iot/status?days=${days}`, mockData.iotDevices),
+  getAlerts: (days: number = 30, limit: number = 50) => fetchAPI(`/kpis/iot/events?days=${days}&limit=${limit}`, mockData.iotAlerts),
+  getSensorsByType: (days: number = 30) => fetchAPI(`/kpis/iot/by-type?days=${days}`, []),
+  getTimeline: (days: number = 30) => fetchAPI(`/kpis/iot/timeline?days=${days}`, []),
 }
 
 // Incidents API

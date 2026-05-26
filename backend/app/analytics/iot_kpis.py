@@ -4,7 +4,7 @@ KPIs para cálculos analíticos del dominio IoT.
 Contiene funciones para calcular KPIs desde fact_iot y raw_events.
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date, Integer
+from sqlalchemy import func, cast, Date, Integer, case
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 
@@ -155,22 +155,40 @@ def get_avg_processing_latency_ms(db: Session, days: Optional[int] = None) -> fl
 # ================================================================
 
 def get_all_iot_kpis(db: Session, days: Optional[int] = None) -> Dict[str, any]:
-    """Retorna todos los KPIs de IoT consolidados."""
+    """
+    Retorna todos los KPIs de IoT consolidados.
     
-    total_sensors = get_total_sensors(db, days)
-    online_sensors = get_online_sensors(db, days)
-    offline_sensors = get_offline_sensors(db, days)
+    KPIs real-time (ignoran días):
+    - total_sensors, online_sensors, offline_sensors, availability_rate
+    - avg_battery_level, low_battery_count
+    
+    KPIs con filtro de días (usan parámetro days):
+    - data_validity_rate, anomalies_detected, avg_processing_latency_ms
+    """
+    
+    # Real-time siempre (sin filtro de días)
+    total_sensors = get_total_sensors(db)
+    online_sensors = get_online_sensors(db)
+    offline_sensors = get_offline_sensors(db)
+    availability_rate = get_availability_rate(db)
+    avg_battery_level = get_avg_battery_level(db)
+    low_battery_count = get_low_battery_count(db)
+    
+    # Con filtro de días (usan el parámetro days si se proporciona)
+    data_validity_rate = get_data_validity_rate(db, days)
+    anomalies_detected = get_anomalies_detected(db, days)
+    avg_processing_latency_ms = get_avg_processing_latency_ms(db, days)
     
     return {
         "total_sensors": total_sensors,
         "online_sensors": online_sensors,
         "offline_sensors": offline_sensors,
-        "availability_rate": get_availability_rate(db, days),
-        "avg_battery_level": get_avg_battery_level(db, days),
-        "low_battery_count": get_low_battery_count(db, days),
-        "data_validity_rate": get_data_validity_rate(db, days),
-        "anomalies_detected": get_anomalies_detected(db, days),
-        "avg_processing_latency_ms": get_avg_processing_latency_ms(db, days),
+        "availability_rate": availability_rate,
+        "avg_battery_level": avg_battery_level,
+        "low_battery_count": low_battery_count,
+        "data_validity_rate": data_validity_rate,
+        "anomalies_detected": anomalies_detected,
+        "avg_processing_latency_ms": avg_processing_latency_ms,
     }
 
 
@@ -196,7 +214,7 @@ def get_sensors_status(db: Session, days: Optional[int] = None) -> List[Dict[str
         cutoff_date = datetime.utcnow() - timedelta(days=days)
         query = query.filter(FactIoT.updated_at >= cutoff_date)
     
-    query = query.order_by(FactIoT.updated_at.desc())
+    query = query.order_by(FactIoT.sensor_id, FactIoT.updated_at.desc())
     
     results = query.all()
     
@@ -223,11 +241,11 @@ def get_sensors_by_type(db: Session, days: Optional[int] = None) -> List[Dict[st
         func.count(func.distinct(FactIoT.sensor_id)).label("count"),
         func.sum(func.cast(FactIoT.is_online, Integer)).label("online_count"),
         func.count(func.distinct(
-            func.case((FactIoT.is_online == False, FactIoT.sensor_id))
+            case((FactIoT.is_online == False, FactIoT.sensor_id), else_=None)
         )).label("offline_count"),
         func.avg(FactIoT.battery_level).label("avg_battery"),
         func.count(func.distinct(
-            func.case((FactIoT.has_anomaly == True, FactIoT.sensor_id))
+            case((FactIoT.has_anomaly == True, FactIoT.sensor_id), else_=None)
         )).label("anomaly_count"),
     ).filter(FactIoT.sensor_type.isnot(None))
     
