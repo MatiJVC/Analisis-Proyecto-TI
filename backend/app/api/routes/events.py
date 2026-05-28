@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.schemas import EventCreate, EventCreateResponse
+from app.schemas.inventory_event_schema import InventoryEventCreate
 from app.services import create_event
 from app.etl.processors.order_processor import process_order_event
 from app.etl.processors.subscription_processor import process_subscription_event
@@ -33,6 +35,33 @@ async def create_event_endpoint(
 ) -> EventCreateResponse:
 
     try:
+        # Validación estricta para eventos del módulo de Inventario (Grupo 5)
+        if event.source == "inventory":
+            try:
+                InventoryEventCreate(
+                    source=event.source,
+                    event_type=event.event_type,
+                    payload=event.payload,
+                )
+            except ValidationError as ve:
+                errores = [
+                    f"• {err['loc'][-1] if err['loc'] else 'payload'}: {err['msg']}"
+                    for err in ve.errors()
+                ]
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": "Evento de inventario con datos inválidos",
+                        "event_type": event.event_type,
+                        "errores": errores,
+                        "ayuda": (
+                            "Revise el formato de los campos. UUIDs deben ser v4, "
+                            "fechas en ISO 8601 (ej: '2026-05-28T10:00:00Z'), "
+                            "y valores numéricos deben ser enteros."
+                        ),
+                    },
+                )
+
         # 1. Guardar evento en raw_events
         db_event = create_event(db=db, event=event)
         
@@ -62,6 +91,12 @@ async def create_event_endpoint(
             except Exception as etl_error:
                 db.rollback()
                 print(f"⚠️  [AUTO-ETL-SALUD] Error: {str(etl_error)}")
+
+        elif db_event.source == "inventory":
+            # Procesamiento ETL del módulo de Inventario — integración pendiente con Grupo 5
+            db_event.processed = True
+            db.commit()
+            print(f"✅ [AUTO-ETL] Evento {db_event.event_type} (inventory) almacenado correctamente")
 
         elif db_event.source == "incidents":
             try:

@@ -1,0 +1,5 @@
+# Dependencias para el suite de load testing del módulo de Inventario
+# Instalar con: pip install -r backend/tests/requirements_test.txt
+
+locust>=2.31.0          # Framework de load testing
+rich>=13.7.0            # Tablas y colores en la consola del analizador
