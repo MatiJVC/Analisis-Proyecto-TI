@@ -437,13 +437,7 @@ POST http://localhost:8000/events
   "event_type": "notificacion_enviada",
   "payload": {
     "id_notificacion": "ntf_abc123",
-    "id_api_key": "key_xyz789",
     "canal_usado": "email",
-    "destinatario_email": "paciente@ejemplo.com",
-    "destinatario_telefono": "+56912345678",
-    "mensaje_asunto": "Confirmación de visita",
-    "mensaje_email": "Hola María, su visita está confirmada para el 20 de abril a las 10:00.",
-    "mensaje_sms": "Visita confirmada: 20 abril 10:00.",
     "intentos": 1
   }
 }
@@ -461,15 +455,11 @@ POST http://localhost:8000/events
   "event_type": "notificacion_entregada",
   "payload": {
     "id_notificacion": "ntf_abc123",
-    "id_api_key": "key_xyz789",
     "canal_usado": "email",
-    "destinatario_email": "paciente@ejemplo.com",
-    "timestamp": "2026-04-16T10:00:08Z"
   }
 }
 ```
 **Campos obligatorios:** `id_notificacion`, `canal_usado`  
-**Campos opcionales:** `id_api_key`, `timestamp`  
 **Resultado:** Actualiza estado a `entregado`, registra `fecha_entrega`, marca éxito de entrega
 
 ---
@@ -481,16 +471,11 @@ POST http://localhost:8000/events
   "event_type": "fallback_activado",
   "payload": {
     "id_notificacion": "ntf_abc123",
-    "id_api_key": "key_xyz789",
-    "canal_original": "sms",
     "canal_fallback": "email",
-    "destinatario_email": "paciente@ejemplo.com",
-    "razon": "SMS delivery failed"
   }
 }
 ```
-**Campos obligatorios:** `id_notificacion`, `canal_original`, `canal_fallback`  
-**Campos opcionales:** `id_api_key`, `destinatario_email`, `razon`  
+**Campos obligatorios:** `id_notificacion`, `canal_fallback`    
 **Resultado:** Marca `fallback_activado=TRUE`, cambia `canal_usado` al canal fallback, incrementa `intentos`
 
 ---
@@ -502,10 +487,7 @@ POST http://localhost:8000/events
   "event_type": "notificacion_fallida",
   "payload": {
     "id_notificacion": "ntf_abc123",
-    "id_api_key": "key_xyz789",
     "canal_usado": "email",
-    "destinatario_email": "paciente@ejemplo.com",
-    "razon": "Invalid email address",
     "intentos": 3
   }
 }

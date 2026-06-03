@@ -37,10 +37,16 @@ class FactNotifications(Base):
         doc="Identificador de la API key usada"
     )
     
+    canal_original = Column(
+        String,
+        nullable=False,
+        doc="Canal con el que se intentó enviar primero: 'sms', 'email', 'push'. Nunca cambia."
+    )
+    
     canal_usado = Column(
         String,
         nullable=False,
-        doc="Canal de envío: 'sms', 'email', 'push'"
+        doc="Canal que finalmente entregó la notificación. Se actualiza si hay fallback."
     )
     
     destinatario_email = Column(

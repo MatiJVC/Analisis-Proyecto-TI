@@ -18,9 +18,9 @@ def _validate_notification_payload(payload: Dict[str, Any], event_type: str) -> 
 
     # canal_usado requerido en todos excepto fallback_activado (usa canal_fallback)
     if event_type == "fallback_activado":
-        if not payload.get("canal_original") or not payload.get("canal_fallback"):
+        if not payload.get("canal_fallback"):
             raise NotificationPayloadValidationError(
-                "fallback_activado requiere: canal_original, canal_fallback"
+                "fallback_activado requiere: canal_fallback"
             )
         canal = payload.get("canal_fallback")
     else:
@@ -87,7 +87,8 @@ def process_notification_event(
                 print(f"[Notifications-ETL] Creando notificación {id_notificacion}")
 
             fact.id_api_key            = payload.get("id_api_key")
-            fact.canal_usado           = payload["canal_usado"]
+            fact.canal_usado         = payload.get("canal_usado")
+            fact.canal_original      = payload.get("canal_usado")
             fact.destinatario_email    = payload.get("destinatario_email")
             fact.destinatario_telefono = payload.get("destinatario_telefono")
             fact.mensaje_asunto        = payload.get("mensaje_asunto")
@@ -110,6 +111,7 @@ def process_notification_event(
                 raise NotificationPayloadValidationError(
                     f"No existe notificación {id_notificacion} para activar fallback"
                 )
+            fact.canal_original   = fact.canal_usado or payload.get("canal_original")
             fact.canal_usado       = payload["canal_fallback"]
             fact.fallback_activado = True
             fact.intentos          = (fact.intentos or 1) + 1

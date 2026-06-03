@@ -1,14 +1,17 @@
-'use client'
+"use client";
 
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
-import { KPICard, KPICardSkeleton } from '@/components/dashboard/kpi-card'
-import { ChartCard, ChartCardSkeleton } from '@/components/dashboard/chart-card'
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { KPICard, KPICardSkeleton } from "@/components/dashboard/kpi-card";
+import {
+  ChartCard,
+  ChartCardSkeleton,
+} from "@/components/dashboard/chart-card";
 import {
   useNotificationKPIs,
   useNotificationChannels,
   useNotificationStatus,
   useNotificationTimeline,
-} from '@/hooks/use-analytics'
+} from "@/hooks/use-analytics";
 import {
   Bell,
   Mail,
@@ -18,7 +21,9 @@ import {
   XCircle,
   ArrowLeftRight,
   Send,
-} from 'lucide-react'
+  Calendar,
+  ChevronDown,
+} from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -29,104 +34,168 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-} from 'recharts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+} from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 // ── types que vienen del backend ──────────────────────────────────────────────
 // GET /kpis/notifications/kpis
 interface NotificationKPIsResponse {
-  total_notifications: number
-  delivered_notifications: number
-  failed_notifications: number
-  fallback_notifications: number
-  failure_rate: number       // %
-  delivery_rate: number      // % — equivale al "uptime del servicio"
-  backpressure_ratio: number // %
-  avg_attempts: number
+  total_notifications: number;
+  delivered_notifications: number;
+  failed_notifications: number;
+  fallback_notifications: number;
+  failure_rate: number; // %
+  delivery_rate: number; // % — equivale al "uptime del servicio"
+  backpressure_ratio: number; // %
+  avg_attempts: number;
 }
 
 // GET /kpis/notifications/channels
 interface ChannelMetric {
-  canal: string              // "sms" | "email" | "push"
-  total: number
-  delivered: number
-  failed: number
-  fallbacks: number
-  avg_attempts: number
-  delivery_rate: number      // %
-  failure_rate: number       // %
+  canal: string; // "sms" | "email" | "push"
+  total: number;
+  delivered_original: number;
+  delivered_fallback: number;
+  failed: number;
+  fallbacks: number;
+  avg_attempts: number;
+  delivery_rate: number; // %
+  failure_rate: number; // %
 }
 
 // GET /kpis/notifications/status
 interface StatusMetric {
-  estado: string             // "enviado" | "entregado" | "fallido"
-  count: number
-  percentage: number
+  estado: string; // "enviado" | "entregado" | "fallido"
+  count: number;
+  percentage: number;
 }
 
 // GET /kpis/notifications/timeline
 interface TimelinePoint {
-  date: string
-  total: number
-  delivered: number
-  failed: number
-  fallbacks: number
+  date: string;
+  total: number;
+  delivered: number;
+  failed: number;
+  fallbacks: number;
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const CANAL_LABELS: Record<string, string> = {
-  sms:   'SMS',
-  email: 'Email',
-  push:  'Push',
-}
+  sms: "SMS",
+  email: "Email",
+  push: "Push",
+};
 
 const CANAL_ICONS: Record<string, React.ReactNode> = {
   email: <Mail className="h-5 w-5" />,
-  sms:   <MessageSquare className="h-5 w-5" />,
-  push:  <Smartphone className="h-5 w-5" />,
-}
+  sms: <MessageSquare className="h-5 w-5" />,
+  push: <Smartphone className="h-5 w-5" />,
+};
 
 const ESTADO_LABELS: Record<string, string> = {
-  enviado:   'Enviado',
-  entregado: 'Entregado',
-  fallido:   'Fallido',
-}
+  enviado: "Enviado sin entregar",
+  entregado: "Entregado",
+  fallido: "Fallido",
+};
 
 const ESTADO_COLORS: Record<string, string> = {
-  enviado:   'var(--chart-2)',
-  entregado: 'var(--chart-1)',
-  fallido:   'var(--destructive)',
-}
+  enviado: "var(--chart-2)",
+  entregado: "var(--chart-1)",
+  fallido: "var(--destructive)",
+};
 
 const CHANNEL_COLORS = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-]
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+];
+type AllowedDays = 1 | 7 | 30 | 90 | 180 | 365;
 
+const filterDaysLabel: Record<AllowedDays, string> = {
+  1: "Último día",
+  7: "Últimos 7 días",
+  30: "Últimos 30 días",
+  90: "Últimos 90 días",
+  180: "Últimos 180 días",
+  365: "Últimos 365 días",
+};
 // ── page ──────────────────────────────────────────────────────────────────────
 export default function NotificationsPage() {
-  const { data: kpis,     isLoading: kpisLoading }     = useNotificationKPIs()
-  const { data: channels, isLoading: channelsLoading } = useNotificationChannels()
-  const { data: statuses, isLoading: statusesLoading } = useNotificationStatus()
-  const { data: timeline, isLoading: timelineLoading } = useNotificationTimeline()
+  const [selectedDays, setSelectedDays] = useState<AllowedDays>(30);
+
+  const { data: kpis, isLoading: kpisLoading } =
+    useNotificationKPIs(selectedDays);
+  const { data: channels, isLoading: channelsLoading } =
+    useNotificationChannels(selectedDays);
+  const { data: statuses, isLoading: statusesLoading } =
+    useNotificationStatus(selectedDays);
+  const { data: timeline, isLoading: timelineLoading } =
+    useNotificationTimeline(selectedDays);
 
   // Adaptar canal para el BarChart (necesita key "channel" para el dataKey)
-  const channelsForChart = channels?.map((c: ChannelMetric) => ({
-    ...c,
-    channel: CANAL_LABELS[c.canal] ?? c.canal,
-  })) ?? []
-
+  const channelsForChart =
+    channels?.map((c: ChannelMetric) => ({
+      ...c,
+      channel: CANAL_LABELS[c.canal] ?? c.canal,
+    })) ?? [];
   return (
     <DashboardLayout>
       <div className="space-y-6">
-
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Notificaciones
-          </h1>
+          <div className="flex justify-between items-center mr-5">
+            {" "}
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Notificaciones
+            </h1>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 bg-background border-border text-foreground hover:bg-muted"
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span>{filterDaysLabel[selectedDays]}</span>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => setSelectedDays(1)}>
+                  Último día
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSelectedDays(7)}>
+                  Últimos 7 días
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSelectedDays(30)}>
+                  Últimos 30 días
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSelectedDays(90)}>
+                  Últimos 90 días
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSelectedDays(180)}>
+                  Últimos 180 días
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => setSelectedDays(365)}>
+                  Últimos 365 días
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>Custom range</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>{" "}
+          </div>
+
           <p className="text-muted-foreground">
             Entrega multicanal y rendimiento del servicio
           </p>
@@ -144,7 +213,7 @@ export default function NotificationsPage() {
                 icon={<Send className="h-5 w-5" />}
               />
               <KPICard
-                title="Uptime del servicio"
+                title="Notificaciones entregadas correctamente"
                 value={kpis?.delivery_rate ?? 0}
                 format="percentage"
                 icon={<CheckCircle className="h-5 w-5" />}
@@ -156,7 +225,7 @@ export default function NotificationsPage() {
                 icon={<XCircle className="h-5 w-5" />}
               />
               <KPICard
-                title="Backpressure ratio"
+                title="Backpressure ratio (Notificaciones con fallback)"
                 value={kpis?.backpressure_ratio ?? 0}
                 format="percentage"
                 icon={<ArrowLeftRight className="h-5 w-5" />}
@@ -178,12 +247,34 @@ export default function NotificationsPage() {
                 <AreaChart data={timeline ?? []}>
                   <defs>
                     <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="var(--chart-2)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-2)"
+                        stopOpacity={0.4}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-2)"
+                        stopOpacity={0}
+                      />
                     </linearGradient>
-                    <linearGradient id="deliveredGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="var(--chart-1)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
+                    <linearGradient
+                      id="deliveredGrad"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-1)"
+                        stopOpacity={0.4}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-1)"
+                        stopOpacity={0}
+                      />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -196,11 +287,11 @@ export default function NotificationsPage() {
                   <YAxis stroke="var(--muted-foreground)" fontSize={12} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'var(--popover)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
+                      backgroundColor: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
                     }}
-                    labelStyle={{ color: 'var(--foreground)' }}
+                    labelStyle={{ color: "var(--foreground)" }}
                   />
                   <Area
                     type="monotone"
@@ -218,6 +309,22 @@ export default function NotificationsPage() {
                     strokeWidth={2}
                     name="Entregadas"
                   />
+                  <Area
+                    type="monotone"
+                    dataKey="failed"
+                    stroke="var(--destructive)"
+                    fill="url(#deliveredGrad)"
+                    strokeWidth={2}
+                    name="Fallidas"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="fallbacks"
+                    stroke="var(--chart-3)"
+                    fill="url(#deliveredGrad)"
+                    strokeWidth={2}
+                    name="Fallbacks"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -226,30 +333,52 @@ export default function NotificationsPage() {
 
         {/* Channel Performance + Channel Details */}
         <div className="grid gap-6 lg:grid-cols-2">
-
           {channelsLoading ? (
             <ChartCardSkeleton />
           ) : (
             <ChartCard
               title="Rendimiento por canal"
-              description="Entregadas y fallidas por canal"
+              description="Entregadas, fallbacks y fallidas por canal"
             >
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={channelsForChart}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="channel" stroke="var(--muted-foreground)" fontSize={12} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--border)"
+                    />
+                    <XAxis
+                      dataKey="channel"
+                      stroke="var(--muted-foreground)"
+                      fontSize={12}
+                    />
                     <YAxis stroke="var(--muted-foreground)" fontSize={12} />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
+                        backgroundColor: "var(--popover)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
                       }}
-                      labelStyle={{ color: 'var(--foreground)' }}
+                      labelStyle={{ color: "var(--foreground)" }}
                     />
-                    <Bar dataKey="delivered" fill="var(--chart-1)" name="Entregadas" radius={[4,4,0,0]} />
-                    <Bar dataKey="failed"    fill="var(--destructive)" name="Fallidas" radius={[4,4,0,0]} />
+                    <Bar
+                      dataKey="delivered_original"
+                      fill="var(--chart-1)"
+                      name="Entregadas (Canal original)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="failed"
+                      fill="var(--destructive)"
+                      name="Fallidas"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="delivered_fallback"
+                      fill="var(--chart-2)"
+                      name="Entregadas (Fallback)"
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -294,7 +423,9 @@ export default function NotificationsPage() {
                       <div className="text-lg font-semibold text-success">
                         {c.delivery_rate.toFixed(1)}%
                       </div>
-                      <div className="text-sm text-muted-foreground">tasa de entrega</div>
+                      <div className="text-sm text-muted-foreground">
+                        tasa de entrega
+                      </div>
                       {c.fallbacks > 0 && (
                         <div className="text-xs text-warning mt-0.5">
                           {c.fallbacks} fallbacks
@@ -324,7 +455,9 @@ export default function NotificationsPage() {
                 >
                   <div
                     className="text-3xl font-bold"
-                    style={{ color: ESTADO_COLORS[s.estado] ?? 'var(--foreground)' }}
+                    style={{
+                      color: ESTADO_COLORS[s.estado] ?? "var(--foreground)",
+                    }}
                   >
                     {s.count.toLocaleString()}
                   </div>
@@ -333,7 +466,10 @@ export default function NotificationsPage() {
                   </div>
                   <div
                     className="text-xs mt-1"
-                    style={{ color: ESTADO_COLORS[s.estado] ?? 'var(--muted-foreground)' }}
+                    style={{
+                      color:
+                        ESTADO_COLORS[s.estado] ?? "var(--muted-foreground)",
+                    }}
                   >
                     {s.percentage.toFixed(1)}%
                   </div>
@@ -342,8 +478,7 @@ export default function NotificationsPage() {
             </div>
           )}
         </ChartCard>
-
       </div>
     </DashboardLayout>
-  )
+  );
 }

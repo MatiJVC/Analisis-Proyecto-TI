@@ -154,15 +154,30 @@ def get_notifications_kpis(db: Session, days: Optional[int] = None) -> Dict:
 # ================================================================
 
 def get_notifications_by_channel(db: Session, days: Optional[int] = None) -> List[Dict]:
-    """
-    Métricas por canal (sms, email, push):
-    total, entregadas, fallidas, fallbacks, tasa de entrega y tasa de fallos.
-    """
     query = db.query(
-        FactNotifications.canal_usado,
+        FactNotifications.canal_usado.label("canal"),
         func.count(FactNotifications.id_notificacion).label("total"),
-        func.sum(case((FactNotifications.estado == "entregado", 1), else_=0)).label("delivered"),
-        func.sum(case((FactNotifications.estado == "fallido",   1), else_=0)).label("failed"),
+        func.sum(
+            case(
+                (
+                    (FactNotifications.estado == "entregado") &
+                    (FactNotifications.canal_usado == FactNotifications.canal_original),
+                    1
+                ),
+                else_=0
+            )
+        ).label("delivered_original"),
+        func.sum(
+            case(
+                (
+                    (FactNotifications.estado == "entregado") &
+                    (FactNotifications.canal_usado != FactNotifications.canal_original),
+                    1
+                ),
+                else_=0
+            )
+        ).label("delivered_fallback"),
+        func.sum(case((FactNotifications.estado == "fallido", 1), else_=0)).label("failed"),
         func.sum(case((FactNotifications.fallback_activado == True, 1), else_=0)).label("fallbacks"),
         func.avg(FactNotifications.intentos).label("avg_attempts"),
     ).filter(FactNotifications.canal_usado.isnot(None))
@@ -175,16 +190,17 @@ def get_notifications_by_channel(db: Session, days: Optional[int] = None) -> Lis
 
     result = [
         {
-            "canal":         canal,
-            "total":         total,
-            "delivered":     delivered or 0,
-            "failed":        failed or 0,
-            "fallbacks":     fallbacks or 0,
-            "avg_attempts":  round(float(avg_attempts), 2) if avg_attempts else 0.0,
-            "delivery_rate": round((delivered or 0) / total * 100, 2) if total else 0.0,
-            "failure_rate":  round((failed or 0)    / total * 100, 2) if total else 0.0,
+            "canal": canal,
+            "total": total,
+            "delivered_original": delivered_original or 0,
+            "delivered_fallback": delivered_fallback or 0,
+            "failed": failed or 0,
+            "fallbacks": fallbacks or 0,
+            "avg_attempts": round(float(avg_attempts), 2) if avg_attempts else 0.0,
+            "delivery_rate": round(((delivered_original or 0) + (delivered_fallback or 0)) / total * 100, 2) if total else 0.0,
+            "failure_rate": round((failed or 0) / total * 100, 2) if total else 0.0,
         }
-        for canal, total, delivered, failed, fallbacks, avg_attempts in rows
+        for canal, total, delivered_original, delivered_fallback, failed, fallbacks, avg_attempts in rows
     ]
 
     result.sort(key=lambda x: x["total"], reverse=True)

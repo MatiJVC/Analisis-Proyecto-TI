@@ -10,16 +10,16 @@ class NotificationKPIs(BaseModel):
     backpressure_ratio:  float   # % notificaciones con fallback activado
     avg_attempts:        float   # promedio de intentos por notificación
 
-
 class ChannelMetric(BaseModel):
-    """Métricas por canal de envío."""
-    canal:         str
-    total:         int
-    delivered:     int
-    failed:        int
-    fallbacks:     int
+    canal: str
+    total: int
+    delivered_original: int
+    delivered_fallback: int
+    failed: int
+    fallbacks: int
+    avg_attempts: float
     delivery_rate: float
-    failure_rate:  float
+    failure_rate: float
 
 
 class ChannelsResponse(BaseModel):
