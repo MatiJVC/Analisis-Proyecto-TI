@@ -2,6 +2,7 @@ from .fact_subscription import FactSubscription
 from .fact_orders import FactOrder
 from .fact_incidents import FactIncident
 from .fact_iot import FactIoT
+from .fact_notifications import FactNotifications
 
 # Healthcare System DWH Models
 try:
@@ -41,6 +42,8 @@ __all__ = [
     "DimPacientes",
     "FactVisitas",
     "FactAlertas",
+    "FactIoT",
+    "FactNotifications",
     "FactFichasClinicas",
     "AggVisitasDiarias",
     "AggAlertas",

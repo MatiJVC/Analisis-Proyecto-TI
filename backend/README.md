@@ -424,7 +424,99 @@ POST http://localhost:8000/events
 
 ---
 
-## 📊 Response Format
+## � Dominio: NOTIFICATIONS
+
+### Eventos Soportados
+
+#### 1. **notificacion_enviada** - Notificación Enviada
+```json
+POST http://localhost:8000/events
+
+{
+  "source": "notifications",
+  "event_type": "notificacion_enviada",
+  "payload": {
+    "id_notificacion": "ntf_abc123",
+    "id_api_key": "key_xyz789",
+    "canal_usado": "email",
+    "destinatario_email": "paciente@ejemplo.com",
+    "destinatario_telefono": "+56912345678",
+    "mensaje_asunto": "Confirmación de visita",
+    "mensaje_email": "Hola María, su visita está confirmada para el 20 de abril a las 10:00.",
+    "mensaje_sms": "Visita confirmada: 20 abril 10:00.",
+    "intentos": 1
+  }
+}
+```
+**Campos obligatorios:** `id_notificacion`, `canal_usado` (sms|email|push)  
+**Campos opcionales:** `id_api_key`, `destinatario_email`, `destinatario_telefono`, `mensaje_asunto`, `mensaje_email`, `mensaje_sms`, `intentos`  
+**Resultado:** Crea registro en `fact_notifications` con estado `enviado`
+
+---
+
+#### 2. **notificacion_entregada** - Notificación Entregada
+```json
+{
+  "source": "notifications",
+  "event_type": "notificacion_entregada",
+  "payload": {
+    "id_notificacion": "ntf_abc123",
+    "id_api_key": "key_xyz789",
+    "canal_usado": "email",
+    "destinatario_email": "paciente@ejemplo.com",
+    "timestamp": "2026-04-16T10:00:08Z"
+  }
+}
+```
+**Campos obligatorios:** `id_notificacion`, `canal_usado`  
+**Campos opcionales:** `id_api_key`, `timestamp`  
+**Resultado:** Actualiza estado a `entregado`, registra `fecha_entrega`, marca éxito de entrega
+
+---
+
+#### 3. **fallback_activado** - Fallback Activado
+```json
+{
+  "source": "notifications",
+  "event_type": "fallback_activado",
+  "payload": {
+    "id_notificacion": "ntf_abc123",
+    "id_api_key": "key_xyz789",
+    "canal_original": "sms",
+    "canal_fallback": "email",
+    "destinatario_email": "paciente@ejemplo.com",
+    "razon": "SMS delivery failed"
+  }
+}
+```
+**Campos obligatorios:** `id_notificacion`, `canal_original`, `canal_fallback`  
+**Campos opcionales:** `id_api_key`, `destinatario_email`, `razon`  
+**Resultado:** Marca `fallback_activado=TRUE`, cambia `canal_usado` al canal fallback, incrementa `intentos`
+
+---
+
+#### 4. **notificacion_fallida** - Notificación Fallida
+```json
+{
+  "source": "notifications",
+  "event_type": "notificacion_fallida",
+  "payload": {
+    "id_notificacion": "ntf_abc123",
+    "id_api_key": "key_xyz789",
+    "canal_usado": "email",
+    "destinatario_email": "paciente@ejemplo.com",
+    "razon": "Invalid email address",
+    "intentos": 3
+  }
+}
+```
+**Campos obligatorios:** `id_notificacion`, `canal_usado`  
+**Campos opcionales:** `id_api_key`, `destinatario_email`, `razon`, `intentos`  
+**Resultado:** Actualiza estado a `fallido`, incrementa `intentos`, registra razón del fallo
+
+---
+
+## �📊 Response Format
 
 ### Success (201 Created)
 ```json

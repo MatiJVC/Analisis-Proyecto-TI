@@ -78,6 +78,21 @@ from app.schemas.overview_kpi_schema import (
     ServiceStatusRow,
 )
 
+from app.analytics.notifications_kpis import (
+    get_notifications_kpis,
+    get_notifications_by_channel,
+    get_notifications_by_status,
+    get_notifications_timeline,
+)
+from app.schemas.notifications_kpi_schema import (
+    NotificationKPIs,
+    ChannelsResponse,
+    ChannelMetric,
+    StatusResponse,
+    StatusMetric,
+    NotificationTimelineResponse,
+    NotificationTimelinePoint,
+)
 
 router = APIRouter(
     prefix="/kpis",
@@ -1011,3 +1026,105 @@ async def iot_health_check(db: Session = Depends(get_db)):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Health check failed: {str(e)}"
         )
+# ================================================================
+# NOTIFICATIONS — KPIs desde fact_notifications
+# ================================================================
+
+@router.get(
+    "/notifications/kpis",
+    response_model=NotificationKPIs,
+    summary="KPIs consolidados de notificaciones",
+    description="Tasa de fallos, uptime del servicio y backpressure ratio"
+)
+async def get_notifications_kpis_endpoint(
+    days: int = 30,
+    db: Session = Depends(get_db)
+) -> NotificationKPIs:
+    try:
+        if days < 1 or days > 365:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 365")
+        return NotificationKPIs(**get_notifications_kpis(db, days))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error KPIs notificaciones: {str(e)}")
+
+
+@router.get(
+    "/notifications/channels",
+    response_model=ChannelsResponse,
+    summary="Métricas por canal",
+    description="Tasa de entrega y fallos desglosada por canal (sms, email, push)"
+)
+
+async def get_notifications_channels_endpoint(
+    days: int = 30,
+    db: Session = Depends(get_db)
+) -> ChannelsResponse:
+    try:
+        if days < 1 or days > 365:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 365")
+        channels = get_notifications_by_channel(db, days)
+        total = sum(c["total"] for c in channels)
+        return ChannelsResponse(
+            total_notifications=total,
+            channels=[ChannelMetric(**c) for c in channels]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error canales notificaciones: {str(e)}")
+
+
+@router.get(
+    "/notifications/status",
+    response_model=StatusResponse,
+    summary="Distribución por estado",
+    description="Conteo de notificaciones en estado enviado, entregado y fallido"
+)
+async def get_notifications_status_endpoint(
+    days: int = 30,
+    db: Session = Depends(get_db)
+) -> StatusResponse:
+    try:
+        if days < 1 or days > 365:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 365")
+        statuses = get_notifications_by_status(db, days)
+        total = sum(s["count"] for s in statuses)
+        return StatusResponse(
+            total_notifications=total,
+            statuses=[StatusMetric(**s) for s in statuses]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error estados notificaciones: {str(e)}")
+
+
+@router.get(
+    "/notifications/timeline",
+    response_model=NotificationTimelineResponse,
+    summary="Línea de tiempo de notificaciones",
+    description="Volumen diario de notificaciones enviadas, entregadas y fallidas"
+)
+async def get_notifications_timeline_endpoint(
+    days: int = 30,
+    db: Session = Depends(get_db)
+) -> NotificationTimelineResponse:
+    try:
+        if days < 1 or days > 365:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 365")
+        timeline = get_notifications_timeline(db, days)
+        total = sum(p["total"] for p in timeline)
+        start_date = (datetime.utcnow() - timedelta(days=days)).date().isoformat()
+        end_date = datetime.utcnow().date().isoformat()
+        return NotificationTimelineResponse(
+            start_date=start_date,
+            end_date=end_date,
+            total_notifications=total,
+            timeline=[NotificationTimelinePoint(**p) for p in timeline]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error timeline notificaciones: {str(e)}")

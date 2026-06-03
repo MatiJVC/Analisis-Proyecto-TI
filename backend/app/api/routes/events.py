@@ -9,7 +9,7 @@ from app.etl.processors.subscription_processor import process_subscription_event
 from app.etl.processors.salud_processor import process_salud_event
 from app.etl.processors.incident_processor import process_incident_event
 from app.etl.processors.iot_processor import process_iot_event
-
+from app.etl.processors.notification_proccessor import process_notification_event
 
 router = APIRouter(
     prefix="/events",
@@ -83,6 +83,15 @@ async def create_event_endpoint(
             except Exception as etl_error:
                 db.rollback()
                 print(f"⚠️  [AUTO-ETL-IoT] Error: {str(etl_error)}")
+        elif db_event.source == "notifications":
+            try:
+                process_notification_event(db, db_event)
+                db_event.processed = True
+                db.commit()
+                print(f"✅ [AUTO-ETL] Evento {db_event.event_type} (notifications) procesado automáticamente")
+            except Exception as etl_error:
+                db.rollback()
+                print(f"⚠️  [AUTO-ETL-NOTIFICATIONS] Error: {str(etl_error)}")
 
         return EventCreateResponse(
             message="event stored",
