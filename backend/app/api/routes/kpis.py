@@ -53,6 +53,20 @@ from app.services.overview_analytics_service import (
     get_recent_activities,
     get_service_statuses,
 )
+from app.services.crm_analytics_service import (
+    get_crm_kpis,
+    get_crm_timeline,
+    get_recent_tickets,
+    get_sla_summary,
+)
+from app.schemas.crm_kpi_schema import (
+    CRMKPIsResponse,
+    CRMTimelineResponse,
+    CRMTimelinePoint,
+    CRMTicketsResponse,
+    CRMTicketRow,
+    CRMSLASummary,
+)
 from app.schemas.overview_kpi_schema import (
     ActivityRow,
     AlertRow,
@@ -686,4 +700,90 @@ async def get_overview_alerts_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error alertas overview: {str(e)}",
+        )
+
+
+@router.get(
+    "/crm/kpis",
+    response_model=CRMKPIsResponse,
+    summary="KPIs del módulo CRM",
+    description="Clientes, tickets abiertos, tiempo de respuesta promedio, CSAT, mensajes y tasa de resolución",
+)
+async def get_crm_kpis_endpoint(db: Session = Depends(get_db)) -> CRMKPIsResponse:
+    try:
+        return CRMKPIsResponse(**get_crm_kpis(db))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error KPIs CRM: {str(e)}",
+        )
+
+
+@router.get(
+    "/crm/timeline",
+    response_model=CRMTimelineResponse,
+    summary="Volumen de tickets CRM por día",
+    description="Tickets abiertos y resueltos por día en los últimos N días",
+)
+async def get_crm_timeline_endpoint(
+    days: int = 14,
+    db: Session = Depends(get_db),
+) -> CRMTimelineResponse:
+    try:
+        if days < 1 or days > 90:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="days debe estar entre 1 y 90",
+            )
+        points = get_crm_timeline(db, days=days)
+        return CRMTimelineResponse(days=days, points=[CRMTimelinePoint(**p) for p in points])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error timeline CRM: {str(e)}",
+        )
+
+
+@router.get(
+    "/crm/tickets",
+    response_model=CRMTicketsResponse,
+    summary="Tickets recientes de CRM",
+    description="Lista de tickets más recientes ordenados por fecha de apertura",
+)
+async def get_crm_tickets_endpoint(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+) -> CRMTicketsResponse:
+    try:
+        if limit < 1 or limit > 100:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="limit debe estar entre 1 y 100",
+            )
+        tickets = get_recent_tickets(db, limit=limit)
+        return CRMTicketsResponse(tickets=[CRMTicketRow(**t) for t in tickets])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error tickets CRM: {str(e)}",
+        )
+
+
+@router.get(
+    "/crm/sla",
+    response_model=CRMSLASummary,
+    summary="Resumen de SLA del módulo CRM",
+    description="Violaciones de SLA y tasa de cumplimiento",
+)
+async def get_crm_sla_endpoint(db: Session = Depends(get_db)) -> CRMSLASummary:
+    try:
+        return CRMSLASummary(**get_sla_summary(db))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error SLA CRM: {str(e)}",
         )

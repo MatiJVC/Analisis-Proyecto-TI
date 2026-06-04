@@ -15,6 +15,11 @@ from app.models.warehouse import (
     FactVisitas,
     FactAlertas,
     FactFichasClinicas,
+    FactTicket,
+    DimClienteCRM,
+    FactInteraccion,
+    FactTicketArticulo,
+    FactSlaViolacion,
 )
 from app.models.warehouse.alerts import PriorityAlert
 from app.pagos.models import (
@@ -46,6 +51,11 @@ _ = (
     FactPagos,
     FactPaymentsEvent,
     FactSlaEvent,
+    FactTicket,
+    DimClienteCRM,
+    FactInteraccion,
+    FactTicketArticulo,
+    FactSlaViolacion,
 )
 
 Base.metadata.create_all(bind=engine)
