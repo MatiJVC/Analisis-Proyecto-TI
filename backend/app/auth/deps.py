@@ -16,9 +16,13 @@ Modos de uso:
     @router.get("/admin", dependencies=[Depends(require_roles("admin"))])
     def admin():                                                  # exige rol
         ...
+
+Si DISABLE_AUTH=true en el entorno, todas las dependencias devuelven un
+usuario ficticio con rol "admin" y no se valida ningún token.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Iterable
 
@@ -27,6 +31,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .keycloak import KeycloakAuthError, decode_token, extract_roles
 
+
+_DISABLE_AUTH = "true"
+
+_DUMMY_USER_CLAIMS = {
+    "sub": "dummy-sub",
+    "preferred_username": "dev-user",
+    "email": "dev@local.dev",
+    "realm_access": {"roles": ["admin", "analista", "salud", "subscriptions", "orders", "incidents"]},
+}
 
 # auto_error=False permite que sea opcional sin levantar 403 si no viene header.
 _bearer = HTTPBearer(auto_error=False)
@@ -56,10 +69,18 @@ def _claims_to_user(claims: dict) -> KeycloakUser:
     )
 
 
+def _dummy_user() -> KeycloakUser:
+    return _claims_to_user(_DUMMY_USER_CLAIMS)
+
+
 def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> KeycloakUser:
-    """Exige un token válido. 401 si no viene o está mal."""
+    """Exige un token válido. 401 si no viene o está mal.
+    Con DISABLE_AUTH=true devuelve siempre el usuario ficticio."""
+    if _DISABLE_AUTH:
+        return _dummy_user()
+
     if creds is None or creds.scheme.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -82,7 +103,11 @@ def get_current_user(
 def get_current_user_optional(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> KeycloakUser | None:
-    """Devuelve el usuario si el token viene y es válido. None en otro caso."""
+    """Devuelve el usuario si el token viene y es válido. None en otro caso.
+    Con DISABLE_AUTH=true devuelve siempre el usuario ficticio."""
+    if _DISABLE_AUTH:
+        return _dummy_user()
+
     if creds is None or creds.scheme.lower() != "bearer":
         return None
     try:
@@ -93,10 +118,13 @@ def get_current_user_optional(
 
 
 def require_roles(*required: str):
-    """Crea una dependencia que verifica que el usuario tenga TODOS los roles."""
+    """Crea una dependencia que verifica que el usuario tenga TODOS los roles.
+    Con DISABLE_AUTH=true siempre pasa."""
     required_set = set(required)
 
     def _checker(user: KeycloakUser = Depends(get_current_user)) -> KeycloakUser:
+        if _DISABLE_AUTH:
+            return user
         if not required_set.issubset(user.roles):
             faltantes = sorted(required_set - set(user.roles))
             raise HTTPException(
@@ -109,10 +137,13 @@ def require_roles(*required: str):
 
 
 def require_any_role(roles: Iterable[str]):
-    """Igual que require_roles pero basta con tener UNO de los roles."""
+    """Igual que require_roles pero basta con tener UNO de los roles.
+    Con DISABLE_AUTH=true siempre pasa."""
     allowed = set(roles)
 
     def _checker(user: KeycloakUser = Depends(get_current_user)) -> KeycloakUser:
+        if _DISABLE_AUTH:
+            return user
         if allowed.isdisjoint(user.roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

@@ -72,9 +72,7 @@ function SubscriptionContent() {
     180: "Últimos 180 días",
     365: "Últimos 365 días",
   };
-  console.log("Subscription KPIs:", kpis);
-  console.log("Subscription Timeline:", timeline);
-  console.log("Retention Rates:", retentionRates);
+
   return (
       <div className="space-y-6">
         {/* Page Header */}

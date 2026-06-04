@@ -9,7 +9,6 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(
 
 // Helper function for API calls (ready for real endpoints)
 async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
-  console.log(`Fetching data from API: ${endpoint}`);
   if (!API_BASE_URL) {
     return fallback;
   }

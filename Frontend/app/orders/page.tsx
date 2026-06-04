@@ -106,7 +106,6 @@ function OrdersContent() {
   const channels = channelsData as OrderChannelsResponse | undefined;
   const statuses = statusesData as OrderStatusResponse | undefined;
   const timeline = timelineData as OrderTimelineResponse | undefined;
-console.log (channels)
   return (
       <div className="space-y-6">
         {/* Page Header */}

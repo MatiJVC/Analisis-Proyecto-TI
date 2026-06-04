@@ -24,6 +24,47 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: proyecto_ti_backend
+    environment:
+      # Dentro de Docker, postgres se resuelve por nombre de servicio
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/proyecto_ti
+      DEBUG: "True"
+      KEYCLOAK_URL: http://localhost:8080
+      KEYCLOAK_REALM: sistema-centralizado
+      KEYCLOAK_AUDIENCE: account
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      DISABLE_AUTH: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - proyecto_ti_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8080
+        NEXT_PUBLIC_KEYCLOAK_REALM: sistema-centralizado
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: proyecto-analisis-ti
+    container_name: proyecto_ti_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - proyecto_ti_network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local

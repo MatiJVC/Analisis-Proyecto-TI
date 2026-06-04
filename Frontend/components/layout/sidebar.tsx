@@ -33,7 +33,6 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  { name: 'Overview', href: '/', icon: LayoutDashboard, roles: ['admin', 'analista'] },
   { name: 'Pedidos', href: '/orders', icon: ShoppingCart, roles: ['admin', 'analista', 'orders'] },
   { name: 'Suscripciones', href: '/subscriptions', icon: RefreshCw, roles: ['admin', 'analista', 'subscriptions'] },
   { name: 'Salud', href: '/health', icon: Heart, roles: ['admin', 'analista', 'salud'] },
@@ -45,7 +44,6 @@ const navigation: NavItem[] = [
   { name: 'Logística', href: '/logistics', icon: Truck, roles: ['admin'] },
   { name: 'Inventario', href: '/inventory', icon: Package, roles: ['admin'] },
   { name: 'CRM', href: '/crm', icon: Users, roles: ['admin'] },
-  { name: 'Identidad', href: '/security', icon: Shield, roles: ['admin'] },
 ]
 
 interface SidebarProps {
