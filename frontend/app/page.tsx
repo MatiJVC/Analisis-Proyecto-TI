@@ -21,7 +21,6 @@ import {
   User,
 } from 'lucide-react'
 import Link from 'next/link'
-import type { ServiceStatus, Activity } from '@/types/analytics'
 
 // ── domain cards config ───────────────────────────────────────────────────────
 const DOMAINS = [
@@ -108,40 +107,8 @@ const DOMAINS = [
 ]
 
 
-// ── status dot ────────────────────────────────────────────────────────────────
-function StatusDot({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    operational: 'bg-emerald-500',
-    degraded:    'bg-amber-400',
-    outage:      'bg-red-500',
-  }
-  return (
-    <span className={`inline-block h-2 w-2 rounded-full ${map[status] ?? 'bg-muted-foreground'}`} />
-  )
-}
 
-// ── activity icon ─────────────────────────────────────────────────────────────
-function ActivityIcon({ status }: { status?: string }) {
-  if (status === 'success') return <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
-  if (status === 'error')   return <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />
-  return <Minus className="h-3.5 w-3.5 text-muted-foreground" />
-}
-
-// ── relative time ─────────────────────────────────────────────────────────────
-function relativeTime(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1)  return 'ahora'
-  if (m < 60) return `hace ${m}m`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `hace ${h}h`
-  return `hace ${Math.floor(h / 24)}d`
-}
-
-// ── page ──────────────────────────────────────────────────────────────────────
 export default function HomePage() {
-  const { data: services, isLoading: servicesLoading } = useServiceStatuses()
-  const { data: activities, isLoading: activitiesLoading } = useRecentActivities()
 
   return (
     <DashboardLayout>
@@ -174,7 +141,7 @@ export default function HomePage() {
             </h1>
             <p className="text-muted-foreground leading-relaxed">
               Monitorea en tiempo real el rendimiento de todos los dominios operacionales
-              — pedidos, suscripciones, notificaciones e IoT — desde un único lugar.
+              
             </p>
           </div>
         </div>
