@@ -1,6 +1,6 @@
 # 📊 Event Ingestion & Analytics API
 
-Sistema de ingestión de eventos y análisis de KPIs en tiempo real para múltiples dominios (órdenes, suscripciones, IoT, notificaciones).
+Sistema de ingestión de eventos y análisis de KPIs en tiempo real para múltiples dominios (órdenes, suscripciones, salud, incidentes, IoT, notificaciones).
 
 ## 🚀 Quick Start
 
@@ -498,7 +498,322 @@ POST http://localhost:8000/events
 
 ---
 
-## �📊 Response Format
+## 🩺 Dominio: SALUD
+
+> Modelo dimensional con SCD (slowly changing dimensions): primero se cargan las dimensiones (`*_upsert`) y luego los hechos (`visita_*`, `alerta_upsert`, `ficha_upsert`). Todos los IDs de negocio son **UUID**.
+
+### Eventos Soportados
+
+#### 1. **usuario_upsert** - Alta/actualización de Usuario (Dim)
+```json
+POST http://localhost:8000/events
+
+{
+  "source": "salud",
+  "event_type": "usuario_upsert",
+  "payload": {
+    "usuario_id": "11111111-1111-1111-1111-111111111111",
+    "nombres": "María",
+    "apellidos": "Pérez",
+    "rut": "12.345.678-9",
+    "email": "maria.perez@example.com",
+    "telefono": "+56 9 1234 5678",
+    "activo": true
+  }
+}
+```
+**Campos obligatorios:** `usuario_id`, `nombres`, `apellidos`  
+**Campos opcionales:** `rut`, `email`, `telefono`, `activo`  
+**Resultado:** Crea o actualiza el registro actual (`es_actual=TRUE`) en `dim_usuarios`. Es prerequisito para `profesional_upsert` y campos de creador/actualizador en visitas y fichas.
+
+---
+
+#### 2. **paciente_upsert** - Alta/actualización de Paciente (Dim)
+```json
+{
+  "source": "salud",
+  "event_type": "paciente_upsert",
+  "payload": {
+    "paciente_id": "22222222-2222-2222-2222-222222222222",
+    "nombres": "Juan",
+    "apellidos": "Soto",
+    "rut": "9.876.543-2",
+    "fecha_nacimiento": "1985-04-12",
+    "sexo": "M",
+    "telefono": "+56 9 8765 4321",
+    "email": "juan.soto@example.com",
+    "direccion": "Av. Siempre Viva 123, Santiago"
+  }
+}
+```
+**Campos obligatorios:** `paciente_id`, `nombres`, `apellidos`  
+**Campos opcionales:** `rut`, `fecha_nacimiento`, `sexo`, `telefono`, `email`, `direccion`  
+**Resultado:** Crea o actualiza el registro actual en `dim_pacientes`. Prerequisito para `visita_upsert` y `alerta_upsert`.
+
+---
+
+#### 3. **profesional_upsert** - Alta/actualización de Profesional (Dim)
+```json
+{
+  "source": "salud",
+  "event_type": "profesional_upsert",
+  "payload": {
+    "profesional_id": "33333333-3333-3333-3333-333333333333",
+    "usuario_id": "11111111-1111-1111-1111-111111111111",
+    "nombres": "María",
+    "apellidos": "Pérez",
+    "profesion": "Enfermera",
+    "numero_registro": "REG-001",
+    "activo": true
+  }
+}
+```
+**Campos obligatorios:** `profesional_id`, `usuario_id`, `nombres`, `apellidos`  
+**Campos opcionales:** `profesion`, `numero_registro`, `activo`  
+**Resultado:** Crea o actualiza el registro actual en `dim_profesionales`. Requiere que el `usuario_id` exista previamente como dim actual.
+
+---
+
+#### 4. **zona_upsert** - Alta/actualización de Zona Geográfica (Dim)
+```json
+{
+  "source": "salud",
+  "event_type": "zona_upsert",
+  "payload": {
+    "zona_id": "44444444-4444-4444-4444-444444444444",
+    "nombre": "Zona Norte",
+    "descripcion": "Sector norte de la ciudad",
+    "comuna": "Recoleta",
+    "region": "Metropolitana",
+    "activa": true
+  }
+}
+```
+**Campos obligatorios:** `zona_id`, `nombre`  
+**Campos opcionales:** `descripcion`, `comuna`, `region`, `activa`  
+**Resultado:** Crea o actualiza el registro actual en `dim_zonas`. Opcional para `visita_upsert`.
+
+---
+
+#### 5. **especialidad_upsert** - Alta/actualización de Especialidad (Dim)
+```json
+{
+  "source": "salud",
+  "event_type": "especialidad_upsert",
+  "payload": {
+    "especialidad_id": "55555555-5555-5555-5555-555555555555",
+    "nombre": "Cardiología",
+    "descripcion": "Atención cardiovascular"
+  }
+}
+```
+**Campos obligatorios:** `especialidad_id`, `nombre`  
+**Campos opcionales:** `descripcion`  
+**Resultado:** Crea o actualiza el registro actual en `dim_especialidades`.
+
+---
+
+#### 6. **visita_upsert** - Alta/actualización de Visita (Fact)
+```json
+{
+  "source": "salud",
+  "event_type": "visita_upsert",
+  "payload": {
+    "visita_id": "66666666-6666-6666-6666-666666666666",
+    "paciente_id": "22222222-2222-2222-2222-222222222222",
+    "profesional_id": "33333333-3333-3333-3333-333333333333",
+    "zona_id": "44444444-4444-4444-4444-444444444444",
+    "usuario_creador_id": "11111111-1111-1111-1111-111111111111",
+    "fecha_programada": "2026-06-10",
+    "hora_programada": "10:30:00",
+    "fecha_inicio_real": "2026-06-10T10:35:00Z",
+    "fecha_fin_real": "2026-06-10T11:15:00Z",
+    "estado": "completada",
+    "completada": 1,
+    "puntual": 0
+  }
+}
+```
+**Campos obligatorios:** `visita_id`, `paciente_id`, `profesional_id`, `fecha_programada`, `estado`  
+**Campos opcionales:** `zona_id`, `usuario_creador_id`, `hora_programada`, `fecha_inicio_real`, `fecha_fin_real`, `completada`, `puntual`  
+**Resultado:** Crea o actualiza el registro en `fact_visitas`, resolviendo dimensiones a sus surrogate keys. Calcula automáticamente `duracion_minutos` y `retraso_minutos` cuando hay datos suficientes.
+
+---
+
+#### 7. **visita_inicio** - Inicio Real de la Visita
+```json
+{
+  "source": "salud",
+  "event_type": "visita_inicio",
+  "payload": {
+    "visita_id": "66666666-6666-6666-6666-666666666666",
+    "fecha_inicio_real": "2026-06-10T10:35:00Z"
+  }
+}
+```
+**Campos obligatorios:** `visita_id`, `fecha_inicio_real`  
+**Resultado:** Marca `fecha_inicio_real` y recalcula `duracion_minutos`/`retraso_minutos`. Requiere visita previa.
+
+---
+
+#### 8. **visita_fin** - Fin Real de la Visita
+```json
+{
+  "source": "salud",
+  "event_type": "visita_fin",
+  "payload": {
+    "visita_id": "66666666-6666-6666-6666-666666666666",
+    "fecha_fin_real": "2026-06-10T11:15:00Z",
+    "estado": "completada",
+    "completada": 1,
+    "puntual": 0
+  }
+}
+```
+**Campos obligatorios:** `visita_id`, `fecha_fin_real`  
+**Campos opcionales:** `estado`, `completada` (0|1), `puntual` (0|1)  
+**Resultado:** Marca `fecha_fin_real`, recalcula duración/retraso y opcionalmente actualiza `estado`, `completada`, `puntual`.
+
+---
+
+#### 9. **alerta_upsert** - Alta/actualización de Alerta Clínica
+```json
+{
+  "source": "salud",
+  "event_type": "alerta_upsert",
+  "payload": {
+    "alerta_id": "77777777-7777-7777-7777-777777777777",
+    "paciente_id": "22222222-2222-2222-2222-222222222222",
+    "visita_id": "66666666-6666-6666-6666-666666666666",
+    "tipo": "PRESION_ALTA",
+    "mensaje": "Paciente con presión sostenida sobre 160/100",
+    "prioridad": "HIGH",
+    "estado": "OPEN",
+    "dias_abierta": 0
+  }
+}
+```
+**Campos obligatorios:** `alerta_id`, `paciente_id`, `tipo`  
+**Campos opcionales:** `visita_id`, `mensaje`, `prioridad` (default `MEDIUM`), `estado` (default `OPEN`), `dias_abierta`  
+**Resultado:** Crea o actualiza el registro en `fact_alertas`. Si se entrega `visita_id`, lo resuelve a `visita_dim_id`.
+
+---
+
+#### 10. **ficha_upsert** - Alta/actualización de Ficha Clínica
+```json
+{
+  "source": "salud",
+  "event_type": "ficha_upsert",
+  "payload": {
+    "ficha_id": "88888888-8888-8888-8888-888888888888",
+    "visita_id": "66666666-6666-6666-6666-666666666666",
+    "estado": "COMPLETED",
+    "contenido": "Paciente estable, se indica control en 7 días.",
+    "usuario_creador_id": "11111111-1111-1111-1111-111111111111",
+    "usuario_actualizador_id": "11111111-1111-1111-1111-111111111111",
+    "tiene_adjuntos": "1",
+    "cantidad_adjuntos": "2"
+  }
+}
+```
+**Campos obligatorios:** `ficha_id`, `visita_id`, `estado`  
+**Campos opcionales:** `contenido`, `usuario_creador_id`, `usuario_actualizador_id`, `tiene_adjuntos`, `cantidad_adjuntos`  
+**Resultado:** Crea o actualiza el registro en `fact_fichas_clinicas`. Requiere que la `visita_id` exista previamente.
+
+---
+
+## 🚨 Dominio: INCIDENTS
+
+> Tracking del ciclo de vida de un incidente: creación → asignación → cambio de estado → resolución. Todos los handlers son **idempotentes** y el mismo `incident_id` se puede reenviar para acumular cambios.
+
+### Eventos Soportados
+
+#### 1. **incident_created** - Incidente Creado
+```json
+POST http://localhost:8000/events
+
+{
+  "source": "incidents",
+  "event_type": "incident_created",
+  "payload": {
+    "incident_id": "INC-1001",
+    "title": "API de pagos respondiendo con 500",
+    "severity": "critical",
+    "status": "open",
+    "assignee": "guardia-l1",
+    "opened_at": "2026-06-04T09:30:00Z"
+  }
+}
+```
+**Campos obligatorios:** `incident_id`  
+**Campos opcionales:** `title` (default `Incident <id>`), `severity` (`critical|high|medium|low`, default `medium`), `status` (`open|investigating|resolved`, default `open`), `assignee`, `opened_at` (default ahora)  
+**Resultado:** Crea registro nuevo en `fact_incidents` o lo actualiza si ya existe ese `incident_id`. Si se proporciona `opened_at`, sobreescribe el valor previo.  
+**Alias:** `incident_upsert` ejecuta exactamente el mismo handler.
+
+---
+
+#### 2. **incident_assigned** - Asignación de Responsable
+```json
+{
+  "source": "incidents",
+  "event_type": "incident_assigned",
+  "payload": {
+    "incident_id": "INC-1001",
+    "assignee": "equipo-backend"
+  }
+}
+```
+**Campos obligatorios:** `incident_id`  
+**Campos opcionales:** `assignee` (puede ser `null` para liberar la asignación)  
+**Resultado:** Actualiza el campo `assignee` y `updated_at`. Si el incidente no existe, lo crea con valores por defecto.
+
+---
+
+#### 3. **incident_status_changed** - Cambio de Estado
+```json
+{
+  "source": "incidents",
+  "event_type": "incident_status_changed",
+  "payload": {
+    "incident_id": "INC-1001",
+    "status": "investigating",
+    "severity": "high",
+    "assignee": "equipo-backend",
+    "title": "API de pagos: degradación parcial"
+  }
+}
+```
+**Campos obligatorios:** `incident_id`  
+**Campos opcionales:** `status` (`open|investigating|resolved`), `severity` (`critical|high|medium|low`), `assignee`, `title`  
+**Resultado:** Aplica los campos comunes presentes (solo se aceptan valores válidos para `status` y `severity`) y actualiza `updated_at`.
+
+---
+
+#### 4. **incident_resolved** - Incidente Resuelto (Final)
+```json
+{
+  "source": "incidents",
+  "event_type": "incident_resolved",
+  "payload": {
+    "incident_id": "INC-1001",
+    "resolved_at": "2026-06-04T11:45:00Z",
+    "resolution_time_hours": 2.25,
+    "sla_met": true,
+    "assignee": "equipo-backend"
+  }
+}
+```
+**Campos obligatorios:** `incident_id`  
+**Campos opcionales:** `resolved_at` (default ahora), `resolution_time_hours` (si no viene se calcula como `resolved_at - opened_at`), `sla_met`, más cualquiera de los campos comunes (`title`, `severity`, `assignee`)  
+**Resultado:** 
+- Fuerza `status=resolved`
+- Registra `resolved_at`
+- Calcula o persiste `resolution_time_hours`
+- Persiste `sla_met` si viene en el payload
+
+---
+
+## 📊 Response Format
 
 ### Success (201 Created)
 ```json

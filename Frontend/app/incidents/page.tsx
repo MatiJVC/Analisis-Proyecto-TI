@@ -43,13 +43,13 @@ function IncidentsContent() {
         {/* Page Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Incident Management</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Gestión de incidentes</h1>
             <p className="text-muted-foreground">
-              Track and resolve operational incidents
+              Monitorea y resuelve incidentes operativos
             </p>
           </div>
           <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-            Create Incident
+            Crear incidente
           </Button>
         </div>
 
@@ -60,28 +60,28 @@ function IncidentsContent() {
           ) : (
             <>
               <KPICard
-                title="Active Incidents"
+                title="Incidentes activos"
                 value={kpis?.activeIncidents ?? 0}
                 icon={<AlertTriangle className="h-5 w-5" />}
               />
               <KPICard
-                title="Resolved Today"
+                title="Resueltos hoy"
                 value={kpis?.resolvedToday ?? 0}
                 icon={<CheckCircle className="h-5 w-5" />}
               />
               <KPICard
-                title="Avg Resolution (hrs)"
+                title="Resolución promedio (hrs)"
                 value={kpis?.avgResolutionTime ?? 0}
                 icon={<Clock className="h-5 w-5" />}
               />
               <KPICard
-                title="SLA Compliance"
+                title="Cumplimiento SLA"
                 value={kpis?.slaCompliance ?? 0}
                 format="percentage"
                 icon={<Target className="h-5 w-5" />}
               />
               <KPICard
-                title="Critical Count"
+                title="Críticos"
                 value={kpis?.criticalCount ?? 0}
                 icon={<AlertCircle className="h-5 w-5" />}
               />
@@ -94,8 +94,8 @@ function IncidentsContent() {
           <ChartCardSkeleton />
         ) : (
           <ChartCard
-            title="Incident Timeline"
-            description="Daily incident volume over the last 14 days"
+            title="Cronología de incidentes"
+            description="Volumen diario de incidentes en los últimos 14 días"
           >
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -103,7 +103,7 @@ function IncidentsContent() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    tickFormatter={(val) => new Date(val).toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
                     stroke="var(--muted-foreground)"
                     fontSize={12}
                   />
@@ -116,9 +116,9 @@ function IncidentsContent() {
                     }}
                     labelStyle={{ color: 'var(--foreground)' }}
                   />
-                  <Bar dataKey="opened" fill="var(--chart-5)" name="Opened" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="resolved" fill="var(--chart-1)" name="Resolved" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="critical" fill="var(--destructive)" name="Critical" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="opened" fill="var(--chart-5)" name="Abiertos" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="resolved" fill="var(--chart-1)" name="Resueltos" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="critical" fill="var(--destructive)" name="Críticos" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -134,10 +134,10 @@ function IncidentsContent() {
             <Card className="bg-card border-border lg:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base font-semibold text-foreground">
-                  Active Incidents
+                  Incidentes activos
                 </CardTitle>
                 <Button variant="ghost" size="sm" className="text-muted-foreground">
-                  View all <ArrowRight className="h-4 w-4 ml-1" />
+                  Ver todos <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </CardHeader>
               <CardContent>
@@ -152,7 +152,7 @@ function IncidentsContent() {
                         <div>
                           <div className="font-medium text-foreground">{incident.title}</div>
                           <div className="text-sm text-muted-foreground">
-                            {incident.id} • Assigned to {incident.assignee}
+                            {incident.id} • Asignado a {incident.assignee}
                           </div>
                         </div>
                       </div>
@@ -171,15 +171,15 @@ function IncidentsContent() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-base font-semibold text-foreground">
-                Severity Distribution
+                Distribución por severidad
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { severity: 'Critical', count: 2, color: 'var(--destructive)', percentage: 16.7 },
-                { severity: 'High', count: 4, color: 'var(--warning)', percentage: 33.3 },
-                { severity: 'Medium', count: 4, color: 'var(--chart-2)', percentage: 33.3 },
-                { severity: 'Low', count: 2, color: 'var(--muted-foreground)', percentage: 16.7 },
+                { severity: 'Crítica', count: 2, color: 'var(--destructive)', percentage: 16.7 },
+                { severity: 'Alta', count: 4, color: 'var(--warning)', percentage: 33.3 },
+                { severity: 'Media', count: 4, color: 'var(--chart-2)', percentage: 33.3 },
+                { severity: 'Baja', count: 2, color: 'var(--muted-foreground)', percentage: 16.7 },
               ].map((item) => (
                 <div key={item.severity} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -204,23 +204,23 @@ function IncidentsContent() {
         </div>
 
         {/* Response Metrics */}
-        <ChartCard title="Response Metrics" description="Incident response performance">
+        <ChartCard title="Métricas de respuesta" description="Rendimiento en respuesta a incidentes">
           <div className="grid gap-4 md:grid-cols-4">
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
               <div className="text-3xl font-bold text-foreground">12min</div>
-              <div className="text-sm text-muted-foreground mt-1">Mean Time to Acknowledge</div>
+              <div className="text-sm text-muted-foreground mt-1">Tiempo medio de reconocimiento</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
               <div className="text-3xl font-bold text-foreground">2.4h</div>
-              <div className="text-sm text-muted-foreground mt-1">Mean Time to Resolve</div>
+              <div className="text-sm text-muted-foreground mt-1">Tiempo medio de resolución</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
               <div className="text-3xl font-bold text-success">94.5%</div>
-              <div className="text-sm text-muted-foreground mt-1">SLA Met</div>
+              <div className="text-sm text-muted-foreground mt-1">SLA cumplido</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
               <div className="text-3xl font-bold text-foreground">8.2</div>
-              <div className="text-sm text-muted-foreground mt-1">Avg Incidents/Day</div>
+              <div className="text-sm text-muted-foreground mt-1">Incidentes promedio/día</div>
             </div>
           </div>
         </ChartCard>

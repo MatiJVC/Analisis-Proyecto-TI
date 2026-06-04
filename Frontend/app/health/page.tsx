@@ -85,9 +85,9 @@ function HealthContent() {
   return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Home Health Services</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Servicios de salud domiciliaria</h1>
           <p className="text-muted-foreground">
-            Domiciliary healthcare operations and patient management (datos desde la API de analítica)
+            Operaciones de atención domiciliaria y gestión de pacientes (datos desde la API de analítica)
           </p>
         </div>
 
@@ -118,32 +118,32 @@ function HealthContent() {
           ) : (
             <>
               <KPICard
-                title="Active Patients"
+                title="Pacientes activos"
                 value={dashboard?.active_patients ?? 0}
                 icon={<Heart className="h-5 w-5" />}
               />
               <KPICard
-                title="Today's Visits"
+                title="Visitas de hoy"
                 value={dashboard?.today_visits ?? 0}
                 icon={<Calendar className="h-5 w-5" />}
               />
               <KPICard
-                title="Healthcare Staff"
+                title="Personal de salud"
                 value={dashboard?.healthcare_staff ?? 0}
                 icon={<Users className="h-5 w-5" />}
               />
               <KPICard
-                title="Avg Visit Time"
+                title="Duración promedio"
                 value={formatAvgVisit(dashboard?.avg_visit_time_minutes)}
                 icon={<Clock className="h-5 w-5" />}
               />
               <KPICard
-                title="Coverage Areas"
+                title="Zonas de cobertura"
                 value={dashboard?.coverage_zones ?? 0}
                 icon={<MapPin className="h-5 w-5" />}
               />
               <KPICard
-                title="Satisfaction"
+                title="Satisfacción"
                 value={
                   dashboard?.satisfaction_score != null
                     ? dashboard.satisfaction_score
@@ -156,11 +156,11 @@ function HealthContent() {
         </div>
 
         <ChartCard
-          title="Visit Trends"
+          title="Tendencia de visitas"
           description={
             loadTrends && !trends
               ? 'Cargando tendencia desde el warehouse…'
-              : 'Daily home health visits (scheduled vs completed), últimos 14 días'
+              : 'Visitas domiciliarias diarias (programadas vs completadas), últimos 14 días'
           }
         >
           <div className="h-[300px]">
@@ -180,7 +180,7 @@ function HealthContent() {
                 <XAxis
                   dataKey="date"
                   tickFormatter={(val) =>
-                    new Date(val + 'T12:00:00').toLocaleDateString('en-US', {
+                    new Date(val + 'T12:00:00').toLocaleDateString('es-CL', {
                       month: 'short',
                       day: 'numeric',
                     })
@@ -202,7 +202,7 @@ function HealthContent() {
                   stroke="var(--chart-2)"
                   fill="url(#visitsGradient)"
                   strokeWidth={2}
-                  name="Scheduled"
+                  name="Programadas"
                 />
                 <Area
                   type="monotone"
@@ -210,7 +210,7 @@ function HealthContent() {
                   stroke="var(--chart-1)"
                   fill="url(#completedGradient)"
                   strokeWidth={2}
-                  name="Completed"
+                  name="Completadas"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -220,7 +220,7 @@ function HealthContent() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-base font-semibold text-foreground">
-              {schedule?.date ? `Today's Schedule (${schedule.date})` : "Today's Schedule"}
+              {schedule?.date ? `Agenda de hoy (${schedule.date})` : 'Agenda de hoy'}
             </CardTitle>
           </CardHeader>
           <CardContent>
