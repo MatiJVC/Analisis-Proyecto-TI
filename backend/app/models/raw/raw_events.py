@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Index
+from sqlalchemy import Column, String, Boolean, Index, JSON
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from app.db.base import Base
@@ -18,7 +18,7 @@ class RawEvent(Base):
 
     source     = Column(String(50),  nullable=False, index=True)
     event_type = Column(String(100), nullable=False, index=True)
-    payload    = Column(JSONB,       nullable=False, default=dict)
+    payload    = Column(JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict)
 
     # ETL orchestration — set to TRUE once event is promoted to Silver/Gold
     processed = Column(Boolean, nullable=False, default=False)

@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import ValidationError
@@ -131,7 +130,6 @@ async def ingest_event(
                 from app.pagos.schemas.payment_schema import AttemptPaymentPayload
                 attempt = AttemptPaymentPayload.model_validate(db_event.payload)
             except ValidationError as ve:
-                db.rollback()
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payment attempt payload: {ve}")
 
             try:
@@ -142,7 +140,7 @@ async def ingest_event(
                     subscription_id=fact.subscription_id,
                     amount=fact.monto,
                     token_transaccion=fact.token_transaccion,
-                    codigo_error=fact.codigo_error,
+                    codigo_error=None,
                     status="esperando_revisión",
                     timestamp_evento=fact.timestamp_evento,
                 )
@@ -160,7 +158,6 @@ async def ingest_event(
                 from app.pagos.schemas.payment_schema import ConfirmPaymentPayload
                 confirm = ConfirmPaymentPayload.model_validate(db_event.payload)
             except ValidationError as ve:
-                db.rollback()
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payment confirm payload: {ve}")
 
             try:
@@ -174,7 +171,7 @@ async def ingest_event(
                     subscription_id=fact.subscription_id,
                     amount=fact.monto,
                     token_transaccion=fact.token_transaccion,
-                    codigo_error=fact.codigo_error,
+                    codigo_error=None,
                     status=status_val,
                     timestamp_evento=fact.timestamp_evento,
                 )
@@ -194,7 +191,6 @@ async def ingest_event(
                 from app.services.monitoring_service import check_payments_uptime
                 cierre = CierreDiarioPayload.model_validate(db_event.payload)
             except ValidationError as ve:
-                db.rollback()
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid cierre payload: {ve}")
 
             try:
