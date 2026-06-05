@@ -40,7 +40,6 @@ const navigation: NavItem[] = [
   { name: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['admin', 'analista'] },
   { name: 'IoT', href: '/iot', icon: Cpu, roles: ['admin', 'analista'] },
   { name: 'Pagos', href: '/pagos', icon: CreditCard, roles: ['admin', 'analista'] },
-  { name: 'Logística', href: '/logistics', icon: Truck, roles: ['admin', 'analista'] },
   { name: 'Inventario', href: '/inventory', icon: Package, roles: ['admin', 'analista'] },
   { name: 'CRM', href: '/crm', icon: Users, roles: ['admin', 'analista'] },
 ]

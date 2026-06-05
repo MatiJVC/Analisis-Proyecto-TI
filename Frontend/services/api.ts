@@ -132,6 +132,16 @@ export const paymentsAPI = {
   getKPIs: () => fetchAPI("/analytics/payments/kpis", mockData.paymentKPIs),
   getTimeline: () =>
     fetchAPI("/analytics/payments/timeline", mockData.paymentTimeline),
+  getFailures: (hours = 24, topN = 10) =>
+    fetchAPI(
+      `/analytics/payments/failures?hours=${hours}&top_n=${topN}`,
+      mockData.paymentFailures,
+    ),
+  getConciliation: (hours = 24) =>
+    fetchAPI(
+      `/analytics/payments/conciliation?hours=${hours}`,
+      mockData.paymentConciliation,
+    ),
 };
 
 // Logistics API
@@ -149,4 +159,35 @@ export const overviewAPI = {
     fetchAPI("/kpis/overview/activities?limit=10", mockData.recentActivities),
   getCriticalAlerts: () =>
     fetchAPI("/kpis/overview/alerts?limit=10", mockData.criticalAlerts),
+};
+
+// CRM API
+export const crmAPI = {
+  getKPIs: () => fetchAPI("/kpis/crm/kpis", mockData.crmKPIs),
+  getTimeline: (days = 14) =>
+    fetchAPI(`/kpis/crm/timeline?days=${days}`, mockData.crmTimeline),
+  getTickets: () => fetchAPI("/kpis/crm/tickets", mockData.crmTickets),
+  getSLA: () => fetchAPI("/kpis/crm/sla", mockData.crmSLA),
+};
+
+// Inventory API
+export const inventoryAPI = {
+  getKPIs: () =>
+    fetchAPI("/inventory/kpis", mockData.inventoryKPIs),
+  getStockStatus: () =>
+    fetchAPI("/inventory/stock-status", mockData.stockStatusSummary),
+  getWarehouseCapacity: () =>
+    fetchAPI("/inventory/snapshot", mockData.warehouseCapacity),
+  getLowStockItems: () =>
+    fetchAPI("/products/thresholds?below_threshold=true", mockData.lowStockItems),
+  getLocationsCatalog: (locationType?: string) =>
+    fetchAPI(
+      `/locations/catalog${locationType ? `?location_type=${locationType}` : ""}`,
+      mockData.locationsCatalog,
+    ),
+  getProductsThresholds: (belowThreshold?: boolean) =>
+    fetchAPI(
+      `/products/thresholds${belowThreshold !== undefined ? `?below_threshold=${belowThreshold}` : ""}`,
+      mockData.productsThresholds,
+    ),
 };

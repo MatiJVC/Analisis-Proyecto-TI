@@ -75,14 +75,6 @@ const DOMAINS = [
     accent: 'var(--chart-2)',
   },
   {
-    key: 'logistics',
-    label: 'Logística',
-    description: 'Rutas, entregas, optimización de transporte y costos',
-    href: '/logistics',
-    icon: Truck,
-    accent: 'var(--chart-2)',
-  },
-  {
     key: 'inventory',
     label: 'Inventario',
     description: 'Stock disponible, rotación de productos y alertas',
