@@ -75,6 +75,13 @@ app = FastAPI(
 
 # Orígenes permitidos (frontend Next.js). Configurable por env para producción.
 _default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+_raw_origins = os.getenv("CORS_ALLOWED_ORIGINS", _default_origins)
+_use_wildcard = _raw_origins.strip() == "*"
+_allowed_origins = (
+    ["*"]
+    if _use_wildcard
+    else [o.strip() for o in _raw_origins.split(",") if o.strip()]
+)
 _allowed_origins = [
     o.strip()
     for o in os.getenv("CORS_ALLOWED_ORIGINS", _default_origins).split(",")
@@ -84,7 +91,7 @@ _allowed_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_credentials=True,
+    allow_credentials=not _use_wildcard,  # credentials incompatible con wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
