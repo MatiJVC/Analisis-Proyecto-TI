@@ -59,7 +59,7 @@ from locust.runners import MasterRunner
 # Configuración
 # ---------------------------------------------------------------------------
 
-EVENTS_ENDPOINT  = os.getenv("EVENTS_ENDPOINT",  "/events")
+EVENTS_ENDPOINT  = os.getenv("EVENTS_ENDPOINT",  "/v1/events")
 TARGET_RPS       = float(os.getenv("TARGET_RPS", "1"))   # req/s por usuario
 VERBOSE_ERRORS   = os.getenv("VERBOSE_ERRORS", "false").lower() == "true"
 

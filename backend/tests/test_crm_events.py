@@ -241,42 +241,42 @@ def _saved(mock_db: MagicMock) -> RawEvent:
 
 class TestTicketCreado:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=TICKET_CREADO).status_code == 202
+        assert client.post("/v1/events", json=TICKET_CREADO).status_code == 202
 
     def test_estado_inicial_es_abierto(self, client: TestClient, mock_db: MagicMock):
         """El MER define estado inicial = Abierto al crear el ticket."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         assert _saved(mock_db).payload["estado"] == "Abierto"
 
     def test_prioridad_en_espanol_capitalized(self, client: TestClient, mock_db: MagicMock):
         """Enum del MER: Baja | Media | Alta | Crítica."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         assert _saved(mock_db).payload["prioridad"] in {"Baja", "Media", "Alta", "Crítica"}
 
     def test_canal_enum_mer(self, client: TestClient, mock_db: MagicMock):
         """Enum del MER: Chat | Email | Teléfono | App."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         assert _saved(mock_db).payload["canal"] in {"Chat", "Email", "Teléfono", "App"}
 
     def test_cliente_identidad_id_es_uuid(self, client: TestClient, mock_db: MagicMock):
         """Cliente.identidad_id es el UUID público — separado del PK entero."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         _uuid.UUID(_saved(mock_db).payload["cliente_identidad_id"])
 
     def test_campos_deduplicacion_email_telefono(self, client: TestClient, mock_db: MagicMock):
         """email (Unique) y telefono para deduplicación en Silver layer."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         p = _saved(mock_db).payload
         assert "email" in p
         assert "telefono" in p
 
     def test_fecha_vencimiento_sla_presente(self, client: TestClient, mock_db: MagicMock):
         """Ticket.fecha_vencimiento_sla es campo explícito en el MER."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         assert "fecha_vencimiento_sla" in _saved(mock_db).payload
 
     def test_source_project_para_segmentacion(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         p = _saved(mock_db).payload
         assert "source_project" in p
         assert p["source_project"] in {
@@ -285,14 +285,14 @@ class TestTicketCreado:
 
     def test_suscripcion_id_red_nombre_correcto(self, client: TestClient, mock_db: MagicMock):
         """El MER define 'suscripcion_id_red' — ese es el nombre oficial del campo."""
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         p = _saved(mock_db).payload
         assert "suscripcion_id_red" in p, (
             "El campo se llama 'suscripcion_id_red' según el MER (no 'suscripcion_id_ref')"
         )
 
     def test_pedido_id_ref_presente(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_CREADO)
+        client.post("/v1/events", json=TICKET_CREADO)
         assert "pedido_id_ref" in _saved(mock_db).payload
 
 
@@ -302,23 +302,23 @@ class TestTicketCreado:
 
 class TestTicketAsignado:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=TICKET_ASIGNADO).status_code == 202
+        assert client.post("/v1/events", json=TICKET_ASIGNADO).status_code == 202
 
     def test_estado_cambia_a_progreso(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_ASIGNADO)
+        client.post("/v1/events", json=TICKET_ASIGNADO)
         assert _saved(mock_db).payload["estado"] == "Progreso"
 
     def test_ticket_id_consistente(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_ASIGNADO)
+        client.post("/v1/events", json=TICKET_ASIGNADO)
         assert _saved(mock_db).payload["ticket_id"] == TICKET_CREADO["payload"]["ticket_id"]
 
     def test_agente_id_uuid(self, client: TestClient, mock_db: MagicMock):
         """Ticket.agente_id es UUID (referencia al agente)."""
-        client.post("/events", json=TICKET_ASIGNADO)
+        client.post("/v1/events", json=TICKET_ASIGNADO)
         _uuid.UUID(_saved(mock_db).payload["agente_id"])
 
     def test_response_time_para_sla(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_ASIGNADO)
+        client.post("/v1/events", json=TICKET_ASIGNADO)
         assert "response_time_minutes" in _saved(mock_db).payload
 
 
@@ -328,18 +328,18 @@ class TestTicketAsignado:
 
 class TestTicketEscalado:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=TICKET_ESCALADO).status_code == 202
+        assert client.post("/v1/events", json=TICKET_ESCALADO).status_code == 202
 
     def test_estado_progreso_durante_escalamiento(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_ESCALADO)
+        client.post("/v1/events", json=TICKET_ESCALADO)
         assert _saved(mock_db).payload["estado"] == "Progreso"
 
     def test_escalado_hacia_incidents(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_ESCALADO)
+        client.post("/v1/events", json=TICKET_ESCALADO)
         assert _saved(mock_db).payload["escalado_hacia"] == "incidents"
 
     def test_prioridad_escalada_en_espanol(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_ESCALADO)
+        client.post("/v1/events", json=TICKET_ESCALADO)
         assert _saved(mock_db).payload["prioridad_al_escalar"] in {
             "Baja", "Media", "Alta", "Crítica"
         }
@@ -351,10 +351,10 @@ class TestTicketEscalado:
 
 class TestTicketResuelto:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=TICKET_RESUELTO).status_code == 202
+        assert client.post("/v1/events", json=TICKET_RESUELTO).status_code == 202
 
     def test_estado_resuelto(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_RESUELTO)
+        client.post("/v1/events", json=TICKET_RESUELTO)
         assert _saved(mock_db).payload["estado"] == "Resuelto"
 
     def test_sin_campo_kb_embedded(self, client: TestClient, mock_db: MagicMock):
@@ -362,24 +362,24 @@ class TestTicketResuelto:
         El uso de KB viaja por Ticket_articulo → evento kb.articulo.usado.
         NO debe ir embedded en ticket.resuelto.
         """
-        client.post("/events", json=TICKET_RESUELTO)
+        client.post("/v1/events", json=TICKET_RESUELTO)
         p = _saved(mock_db).payload
         assert "kb_articulo_usado" not in p
         assert "fue_enviado_al_cliente" not in p
 
     def test_within_sla_booleano(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_RESUELTO)
+        client.post("/v1/events", json=TICKET_RESUELTO)
         assert isinstance(_saved(mock_db).payload["within_sla"], bool)
 
     def test_referencias_cruzadas_para_joins(self, client: TestClient, mock_db: MagicMock):
         """Los FK externos se repiten en resuelto para facilitar queries Silver."""
-        client.post("/events", json=TICKET_RESUELTO)
+        client.post("/v1/events", json=TICKET_RESUELTO)
         p = _saved(mock_db).payload
         assert "pedido_id_ref" in p
         assert "suscripcion_id_red" in p
 
     def test_source_project_en_resolucion(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_RESUELTO)
+        client.post("/v1/events", json=TICKET_RESUELTO)
         assert "source_project" in _saved(mock_db).payload
 
 
@@ -389,18 +389,18 @@ class TestTicketResuelto:
 
 class TestTicketCerrado:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=TICKET_CERRADO).status_code == 202
+        assert client.post("/v1/events", json=TICKET_CERRADO).status_code == 202
 
     def test_estado_cerrado(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_CERRADO)
+        client.post("/v1/events", json=TICKET_CERRADO)
         assert _saved(mock_db).payload["estado"] == "Cerrado"
 
     def test_csat_score_en_rango(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_CERRADO)
+        client.post("/v1/events", json=TICKET_CERRADO)
         assert 1 <= _saved(mock_db).payload["csat_score"] <= 5
 
     def test_ticket_id_consistente_ciclo_completo(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_CERRADO)
+        client.post("/v1/events", json=TICKET_CERRADO)
         assert _saved(mock_db).payload["ticket_id"] == TICKET_CREADO["payload"]["ticket_id"]
 
 
@@ -410,32 +410,32 @@ class TestTicketCerrado:
 
 class TestInteraccionCreada:
     def test_201_mensaje_cliente_visible(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=INTERACCION_CREADA).status_code == 202
+        assert client.post("/v1/events", json=INTERACCION_CREADA).status_code == 202
 
     def test_201_nota_interna(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=NOTA_INTERNA_CREADA).status_code == 202
+        assert client.post("/v1/events", json=NOTA_INTERNA_CREADA).status_code == 202
 
     def test_event_type_correcto(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=INTERACCION_CREADA)
+        client.post("/v1/events", json=INTERACCION_CREADA)
         assert _saved(mock_db).event_type == "interaccion.creada"
 
     def test_autor_tipo_enum_mer(self, client: TestClient, mock_db: MagicMock):
         """Interaccion.autor_tipo: Cliente | Agente | Sistema."""
-        client.post("/events", json=INTERACCION_CREADA)
+        client.post("/v1/events", json=INTERACCION_CREADA)
         assert _saved(mock_db).payload["autor_tipo"] in {"Cliente", "Agente", "Sistema"}
 
     def test_es_nota_interna_booleano(self, client: TestClient, mock_db: MagicMock):
         """Interaccion.es_nota_interna distingue mensajes internos de cara al cliente."""
-        client.post("/events", json=NOTA_INTERNA_CREADA)
+        client.post("/v1/events", json=NOTA_INTERNA_CREADA)
         assert _saved(mock_db).payload["es_nota_interna"] is True
 
     def test_ticket_vinculado(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=INTERACCION_CREADA)
+        client.post("/v1/events", json=INTERACCION_CREADA)
         assert _saved(mock_db).payload["ticket_id"] == TICKET_CREADO["payload"]["ticket_id"]
 
     def test_autor_id_presente(self, client: TestClient, mock_db: MagicMock):
         """Interaccion.autor_id es UUID del autor."""
-        client.post("/events", json=INTERACCION_CREADA)
+        client.post("/v1/events", json=INTERACCION_CREADA)
         assert "autor_id" in _saved(mock_db).payload
 
 
@@ -445,11 +445,11 @@ class TestInteraccionCreada:
 
 class TestKbArticuloUsado:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=KB_ARTICULO_USADO).status_code == 202
+        assert client.post("/v1/events", json=KB_ARTICULO_USADO).status_code == 202
 
     def test_es_evento_independiente(self, client: TestClient, mock_db: MagicMock):
         """Ticket_articulo es una entidad separada → evento propio, no embedded."""
-        client.post("/events", json=KB_ARTICULO_USADO)
+        client.post("/v1/events", json=KB_ARTICULO_USADO)
         saved = _saved(mock_db)
         assert saved.event_type == "kb.articulo.usado"
         assert saved.source == "crm"
@@ -459,7 +459,7 @@ class TestKbArticuloUsado:
         Campos obligatorios del MER para Ticket_articulo:
         ticket_id, articulo_id, fue_enviado_al_cliente, agente_id, vinculado_en
         """
-        client.post("/events", json=KB_ARTICULO_USADO)
+        client.post("/v1/events", json=KB_ARTICULO_USADO)
         p = _saved(mock_db).payload
         assert "ticket_id" in p
         assert "articulo_id" in p
@@ -468,11 +468,11 @@ class TestKbArticuloUsado:
         assert "vinculado_en" in p
 
     def test_fue_enviado_al_cliente_es_booleano(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=KB_ARTICULO_USADO)
+        client.post("/v1/events", json=KB_ARTICULO_USADO)
         assert isinstance(_saved(mock_db).payload["fue_enviado_al_cliente"], bool)
 
     def test_ticket_id_vincula_al_ticket(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=KB_ARTICULO_USADO)
+        client.post("/v1/events", json=KB_ARTICULO_USADO)
         assert _saved(mock_db).payload["ticket_id"] == TICKET_CREADO["payload"]["ticket_id"]
 
     def test_multiples_articulos_por_ticket(self, client: TestClient, mock_db: MagicMock):
@@ -485,8 +485,8 @@ class TestKbArticuloUsado:
                 "articulo_titulo": "Checklist de verificación de entrega",
             },
         }
-        r1 = client.post("/events", json=KB_ARTICULO_USADO)
-        r2 = client.post("/events", json=segundo)
+        r1 = client.post("/v1/events", json=KB_ARTICULO_USADO)
+        r2 = client.post("/v1/events", json=segundo)
         assert r1.status_code == 202
         assert r2.status_code == 202
         assert mock_db.add.call_count == 2
@@ -498,29 +498,29 @@ class TestKbArticuloUsado:
 
 class TestTicketSlaViolado:
     def test_201(self, client: TestClient, mock_db: MagicMock):
-        assert client.post("/events", json=TICKET_SLA_VIOLADO).status_code == 202
+        assert client.post("/v1/events", json=TICKET_SLA_VIOLADO).status_code == 202
 
     def test_threshold_crossed_75_100_o_150(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_SLA_VIOLADO)
+        client.post("/v1/events", json=TICKET_SLA_VIOLADO)
         assert _saved(mock_db).payload["threshold_crossed"] in {75, 100, 150}
 
     def test_prioridad_critica_sla_8h(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_SLA_VIOLADO)
+        client.post("/v1/events", json=TICKET_SLA_VIOLADO)
         p = _saved(mock_db).payload
         assert p["prioridad"] == "Crítica"
         assert p["sla_threshold_hours"] == 8
 
     def test_fecha_vencimiento_sla_registrada(self, client: TestClient, mock_db: MagicMock):
         """fecha_vencimiento_sla del MER debe estar también en la violación."""
-        client.post("/events", json=TICKET_SLA_VIOLADO)
+        client.post("/v1/events", json=TICKET_SLA_VIOLADO)
         assert "fecha_vencimiento_sla" in _saved(mock_db).payload
 
     def test_escalado_hacia_incidents(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_SLA_VIOLADO)
+        client.post("/v1/events", json=TICKET_SLA_VIOLADO)
         assert _saved(mock_db).payload["escalado_hacia"] == "incidents"
 
     def test_source_project_en_sla_violado(self, client: TestClient, mock_db: MagicMock):
-        client.post("/events", json=TICKET_SLA_VIOLADO)
+        client.post("/v1/events", json=TICKET_SLA_VIOLADO)
         assert "source_project" in _saved(mock_db).payload
 
 
@@ -531,15 +531,15 @@ class TestTicketSlaViolado:
 class TestCRMValidaciones:
     def test_missing_source_devuelve_422(self, client: TestClient, mock_db: MagicMock):
         bad = {k: v for k, v in TICKET_CREADO.items() if k != "source"}
-        assert client.post("/events", json=bad).status_code == 422
+        assert client.post("/v1/events", json=bad).status_code == 422
         mock_db.add.assert_not_called()
 
     def test_missing_event_type_devuelve_422(self, client: TestClient, mock_db: MagicMock):
         bad = {k: v for k, v in TICKET_CREADO.items() if k != "event_type"}
-        assert client.post("/events", json=bad).status_code == 422
+        assert client.post("/v1/events", json=bad).status_code == 422
         mock_db.add.assert_not_called()
 
     def test_payload_como_lista_devuelve_422(self, client: TestClient, mock_db: MagicMock):
         bad = {**TICKET_CREADO, "payload": ["esto", "no", "es", "un", "objeto"]}
-        assert client.post("/events", json=bad).status_code == 422
+        assert client.post("/v1/events", json=bad).status_code == 422
         mock_db.add.assert_not_called()

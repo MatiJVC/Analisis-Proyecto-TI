@@ -91,10 +91,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(events_router)
-app.include_router(kpis_router)
-app.include_router(inventory_router)
-app.include_router(analytics_router)
+app.include_router(events_router, prefix="/v1")
+app.include_router(kpis_router, prefix="/v1")
+app.include_router(inventory_router, prefix="/v1")
+app.include_router(analytics_router, prefix="/v1")
 
 
 @app.get("/", tags=["health"])
