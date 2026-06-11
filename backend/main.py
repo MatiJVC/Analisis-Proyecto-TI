@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import KeycloakUser, get_current_user, get_current_user_optional
+from app.api.rate_limit import require_rate_limit
 from app.db import engine, Base
 # Importaciones de modelos para que SQLAlchemy los registre en Base.metadata antes
 # de llamar a create_all. El orden importa: raw primero, luego warehouse, luego pagos.
@@ -61,14 +62,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_credentials=not _use_wildcard,  # credentials incompatible con wildcard
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(events_router, prefix="/v1")
-app.include_router(kpis_router, prefix="/v1")
-app.include_router(inventory_router, prefix="/v1")
-app.include_router(analytics_router, prefix="/v1")
+app.include_router(kpis_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
+app.include_router(inventory_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
+app.include_router(analytics_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
 
 
 @app.get("/", tags=["health"])

@@ -1,9 +1,15 @@
+import hashlib
+
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.pagos.models.fact_pagos import FactPagos
 from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
 from app.pagos.models.dim_error_codes import get_error_code_id
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 ALLOWED_ESTADOS = [
@@ -34,7 +40,7 @@ def register_payment_attempt(db: Session, payload: dict) -> FactPagos:
             order_id=payload.get("order_id"),
             subscription_id=payload.get("subscription_id"),
             monto=payload["monto"],
-            token_transaccion=payload["token_transaccion"],
+            token_transaccion=_hash_token(payload["token_transaccion"]),
             error_code_id=None,
             timestamp_evento=payload["timestamp_evento"],
             estado_conciliacion_id=estado.id,
@@ -53,7 +59,7 @@ def confirm_payment(db: Session, token: str, confirmation: dict) -> FactPagos:
     try:
         fact = (
             db.query(FactPagos)
-            .filter(FactPagos.token_transaccion == token)
+            .filter(FactPagos.token_transaccion == _hash_token(token))
             .with_for_update()
             .one_or_none()
         )

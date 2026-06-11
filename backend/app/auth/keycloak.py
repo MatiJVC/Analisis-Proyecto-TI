@@ -8,6 +8,7 @@ en caliente: solo la primera vez o cuando rotan las claves.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from typing import Any
@@ -19,6 +20,16 @@ from jose.exceptions import JWTError
 
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://localhost:8080").rstrip("/")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "sistema-centralizado")
+
+_ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+if _ENVIRONMENT != "development" and KEYCLOAK_URL.startswith("http://"):
+    print(
+        f"FATAL: KEYCLOAK_URL usa HTTP ({KEYCLOAK_URL}) en entorno '{_ENVIRONMENT}'. "
+        "Configure KEYCLOAK_URL con HTTPS para proteger el descubrimiento de JWKS.",
+        file=sys.stderr,
+        flush=True,
+    )
+    sys.exit(1)
 # Audiencia esperada en el token. Keycloak por defecto pone "account".
 KEYCLOAK_AUDIENCE = os.getenv("KEYCLOAK_AUDIENCE", "account")
 # Refrescar el JWKS cada N segundos (rota cuando admin cambia las claves).
