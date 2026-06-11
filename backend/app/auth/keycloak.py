@@ -8,6 +8,7 @@ en caliente: solo la primera vez o cuando rotan las claves.
 from __future__ import annotations
 
 import os
+import threading
 import time
 from typing import Any
 
@@ -32,27 +33,29 @@ class KeycloakAuthError(Exception):
 
 
 _jwks_cache: dict[str, Any] = {"keys": None, "fetched_at": 0.0}
+_jwks_lock = threading.Lock()
 
 
 def _get_jwks() -> dict[str, Any]:
     now = time.time()
-    if (
-        _jwks_cache["keys"] is not None
-        and now - _jwks_cache["fetched_at"] < JWKS_CACHE_TTL
-    ):
+    with _jwks_lock:
+        if (
+            _jwks_cache["keys"] is not None
+            and now - _jwks_cache["fetched_at"] < JWKS_CACHE_TTL
+        ):
+            return _jwks_cache["keys"]
+
+        try:
+            resp = httpx.get(JWKS_URL, timeout=5.0)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise KeycloakAuthError(
+                f"No se pudo obtener JWKS de Keycloak en {JWKS_URL}: {exc}"
+            ) from exc
+
+        _jwks_cache["keys"] = resp.json()
+        _jwks_cache["fetched_at"] = now
         return _jwks_cache["keys"]
-
-    try:
-        resp = httpx.get(JWKS_URL, timeout=5.0)
-        resp.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise KeycloakAuthError(
-            f"No se pudo obtener JWKS de Keycloak en {JWKS_URL}: {exc}"
-        ) from exc
-
-    _jwks_cache["keys"] = resp.json()
-    _jwks_cache["fetched_at"] = now
-    return _jwks_cache["keys"]
 
 
 def _find_key(kid: str) -> dict[str, Any] | None:
@@ -62,7 +65,8 @@ def _find_key(kid: str) -> dict[str, Any] | None:
             return key
     # Si no encontramos el kid puede ser una clave nueva: invalidamos cache y
     # reintentamos una sola vez.
-    _jwks_cache["fetched_at"] = 0.0
+    with _jwks_lock:
+        _jwks_cache["fetched_at"] = 0.0
     jwks = _get_jwks()
     for key in jwks.get("keys", []):
         if key.get("kid") == kid:
