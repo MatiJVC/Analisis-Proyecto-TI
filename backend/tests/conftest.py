@@ -16,6 +16,7 @@ os.environ.setdefault(
     "postgresql+psycopg://test:test@localhost:5432/test_db",
 )
 os.environ.setdefault("SQL_ECHO", "False")
+os.environ.setdefault("DISABLE_AUTH", "true")
 
 with patch("sqlalchemy.MetaData.create_all"):
     from main import app

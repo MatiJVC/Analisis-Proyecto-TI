@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_user, KeycloakUser
 from app.db import get_db
 from app.db.session import SessionLocal
 from app.models.raw.raw_events import RawEvent
@@ -27,6 +28,7 @@ router = APIRouter(
     tags=["events"],
     responses={
         400: {"description": "Payload JSON inválido o campos requeridos faltantes"},
+        401: {"description": "Falta token Bearer o token inválido"},
         500: {"description": "Error interno del servidor"},
     },
 )
@@ -91,6 +93,7 @@ async def ingest_event(
     event: EventCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    _user: KeycloakUser = Depends(get_current_user),
 ) -> AcknowledgeResponse:
     event_id = uuid.uuid4()
     ingested_at = datetime.now(tz=timezone.utc)

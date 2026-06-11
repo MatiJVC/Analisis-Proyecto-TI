@@ -92,10 +92,6 @@ def decode_token(token: str) -> dict[str, Any]:
             algorithms=[key.get("alg", "RS256")],
             audience=KEYCLOAK_AUDIENCE,
             issuer=ISSUER,
-            options={"verify_aud": False},
-            # Nota: desactivamos verify_aud porque Keycloak no siempre incluye
-            # el clientId en `aud`. Validamos issuer (que ya identifica al
-            # realm) y verificamos `azp` aparte si se necesita.
         )
     except JWTError as exc:
         raise KeycloakAuthError(f"Token inválido: {exc}") from exc

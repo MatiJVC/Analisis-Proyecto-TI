@@ -32,7 +32,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from .keycloak import KeycloakAuthError, decode_token, extract_roles
 
 
-_DISABLE_AUTH = "true"
+_DISABLE_AUTH = os.getenv("DISABLE_AUTH", "false").lower() == "true"
 
 _DUMMY_USER_CLAIMS = {
     "sub": "dummy-sub",
