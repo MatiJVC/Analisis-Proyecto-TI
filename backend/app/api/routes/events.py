@@ -23,6 +23,7 @@ from app.pagos.services.payment_service import register_payment_attempt, confirm
 from app.pagos.models.fact_payments_events import FactPaymentsEvent
 from app.etl.processors.iot_processor import process_iot_event
 from app.etl.processors.notification_proccessor import process_notification_event
+from app.api.rate_limit import require_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ async def ingest_event(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _user: KeycloakUser = Depends(get_current_user),
+    _rl: None = Depends(require_rate_limit),
 ) -> AcknowledgeResponse:
     event_id = uuid.uuid4()
     ingested_at = datetime.now(tz=timezone.utc)
