@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.auth import require_any_role
 from app.db import get_db
 from app.pagos.schemas.payment_analytics_schema import (
     PaymentConciliationResponse,
@@ -18,7 +19,12 @@ from app.pagos.services.sla_service import get_sla_status
 router = APIRouter(
     prefix="/analytics",
     tags=["analytics"],
-    responses={500: {"description": "Internal server error"}},
+    dependencies=[Depends(require_any_role(["admin", "analista"]))],
+    responses={
+        401: {"description": "Falta token Bearer o token inválido"},
+        403: {"description": "El usuario no tiene rol suficiente"},
+        500: {"description": "Internal server error"},
+    },
 )
 
 
@@ -40,10 +46,10 @@ async def get_payments_kpis(
     try:
         data = get_payment_kpis(db, hours=hours)
         return PaymentKPIsResponse(**data)
-    except Exception as exc:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error calculando KPIs de pagos: {exc}",
+            detail="Error calculando KPIs de pagos",
         )
 
 
@@ -65,10 +71,10 @@ async def get_payments_timeline(
     try:
         data = get_payment_timeline(db, hours=hours)
         return [PaymentTimelinePoint(**point) for point in data]
-    except Exception as exc:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error calculando timeline de pagos: {exc}",
+            detail="Error calculando timeline de pagos",
         )
 
 
@@ -90,10 +96,10 @@ async def get_payments_failures(
     try:
         data = get_failure_reasons(db, hours=hours, top_n=top_n)
         return PaymentFailuresResponse(**data)
-    except Exception as exc:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error calculando razones de fallo: {exc}",
+            detail="Error calculando razones de fallo",
         )
 
 
@@ -114,10 +120,10 @@ async def get_payments_conciliation(
     try:
         data = get_conciliation_summary(db, hours=hours)
         return PaymentConciliationResponse(**data)
-    except Exception as exc:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error calculando estado de conciliación: {exc}",
+            detail="Error calculando estado de conciliación",
         )
 
 
@@ -139,8 +145,8 @@ async def get_payments_sla(
     try:
         data = get_sla_status(db, hours=hours)
         return SlaStatusResponse(**data)
-    except Exception as exc:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error consultando estado SLA: {exc}",
+            detail="Error consultando estado SLA",
         )

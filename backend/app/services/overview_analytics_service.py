@@ -33,6 +33,42 @@ def _format_relative_time(dt: datetime) -> str:
 # ================================================================
 
 
+def get_global_kpis(db: Session) -> Dict[str, Any]:
+    total_orders = db.query(func.count(FactOrder.id)).scalar() or 0
+    delivered = (
+        db.query(func.count(FactOrder.id))
+        .filter(FactOrder.delivery_completed == True)  # noqa: E712
+        .scalar()
+        or 0
+    )
+    delivery_rate = round((delivered / total_orders * 100) if total_orders > 0 else 0.0, 2)
+    revenue = float(db.query(func.sum(FactOrder.total_amount)).scalar() or 0.0)
+
+    active_subs = (
+        db.query(func.count(FactSubscription.id))
+        .filter(FactSubscription.status == "active")
+        .scalar()
+        or 0
+    )
+
+    incident_count = (
+        db.query(func.count(FactIncident.id))
+        .filter(FactIncident.status != "resolved")
+        .scalar()
+        or 0
+    )
+
+    return {
+        "totalOrders": total_orders,
+        "deliveryRate": delivery_rate,
+        "revenue": round(revenue, 2),
+        "notificationSuccessRate": 0.0,
+        "activeSubscriptions": active_subs,
+        "iotAlerts": 0,
+        "incidentCount": incident_count,
+        "paymentFailureRate": 0.0,
+    }
+
 
 # ================================================================
 # Service statuses (derivados de incidentes activos)

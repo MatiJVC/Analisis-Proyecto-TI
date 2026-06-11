@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String
 
@@ -18,12 +18,12 @@ class FactIncident(Base):
 
     opened_at = Column(DateTime, nullable=False, index=True)
     resolved_at = Column(DateTime, nullable=True, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     resolution_time_hours = Column(Float, nullable=True)
     sla_met = Column(Boolean, default=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
 
     __table_args__ = (
         Index("idx_fact_incidents_status_severity", "status", "severity"),

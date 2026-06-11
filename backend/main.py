@@ -5,8 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import KeycloakUser, get_current_user, get_current_user_optional
 from app.db import engine, Base
-from app.models.raw import RawEvent
-from app.models.warehouse import (
+# Importaciones de modelos para que SQLAlchemy los registre en Base.metadata antes
+# de llamar a create_all. El orden importa: raw primero, luego warehouse, luego pagos.
+from app.models.raw import RawEvent  # noqa: F401
+from app.models.warehouse import (  # noqa: F401
     FactSubscription,
     FactOrder,
     FactIncident,
@@ -26,8 +28,8 @@ from app.models.warehouse import (
     FactInventoryMovement,
     FactInventoryAlert,
 )
-from app.models.warehouse.alerts import PriorityAlert
-from app.pagos.models import (
+from app.models.warehouse.alerts import PriorityAlert  # noqa: F401
+from app.pagos.models import (  # noqa: F401
     CierreDiario,
     DimErrorCode,
     DimEstadosConciliacion,
@@ -36,34 +38,6 @@ from app.pagos.models import (
     FactSlaEvent,
 )
 from app.api import events_router, inventory_router, kpis_router, analytics_router
-_ = (
-    RawEvent,
-    FactSubscription,
-    FactOrder,
-    FactIncident,
-    DimUsuarios,
-    DimProfesionales,
-    DimZonas,
-    DimEspecialidades,
-    DimPacientes,
-    FactVisitas,
-    FactAlertas,
-    FactFichasClinicas,
-    PriorityAlert,
-    CierreDiario,
-    DimErrorCode,
-    DimEstadosConciliacion,
-    FactPagos,
-    FactPaymentsEvent,
-    FactSlaEvent,
-    FactTicket,
-    DimClienteCRM,
-    FactInteraccion,
-    FactTicketArticulo,
-    FactSlaViolacion,
-    FactInventoryMovement,
-    FactInventoryAlert,
-)
 
 Base.metadata.create_all(bind=engine)
 

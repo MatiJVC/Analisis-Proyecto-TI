@@ -33,6 +33,16 @@ from .keycloak import KeycloakAuthError, decode_token, extract_roles
 
 
 _DISABLE_AUTH = os.getenv("DISABLE_AUTH", "false").lower() == "true"
+_ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+
+if _DISABLE_AUTH and _ENVIRONMENT == "production":
+    import sys
+    print(
+        "FATAL: DISABLE_AUTH=true no está permitido en ENVIRONMENT=production. "
+        "Elimine la variable DISABLE_AUTH del entorno de producción.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 _DUMMY_USER_CLAIMS = {
     "sub": "dummy-sub",

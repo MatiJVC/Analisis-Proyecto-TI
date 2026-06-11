@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, Numeric, DateTime, Integer, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID
@@ -16,7 +16,7 @@ class FactPagos(Base):
     monto = Column(Numeric(18, 2), nullable=False)
     token_transaccion = Column(String(255), nullable=False, index=True)
     error_code_id = Column(Integer, ForeignKey("dim_error_codes.id"), nullable=True, index=True)
-    timestamp_evento = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+    timestamp_evento = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     estado_conciliacion_id = Column(Integer, ForeignKey("dim_estados_conciliacion.id"), nullable=False, index=True)
 
     __table_args__ = (
@@ -26,5 +26,5 @@ class FactPagos(Base):
     def __repr__(self) -> str:
         return (
             f"<FactPagos(transaction_id={self.transaction_id}, order_id={self.order_id}, "
-            f"subscription_id={self.subscription_id}, monto={self.monto}, token={self.token_transaccion})>"
+            f"monto={self.monto})>"
         )
