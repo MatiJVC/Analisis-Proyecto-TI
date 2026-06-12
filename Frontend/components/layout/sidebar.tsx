@@ -38,13 +38,13 @@ const navigation: NavItem[] = [
   { name: 'Suscripciones', href: '/subscriptions', icon: RefreshCw, roles: ['admin', 'analista', 'subscriptions'] },
   { name: 'Salud', href: '/health', icon: Heart, roles: ['admin', 'analista', 'salud'] },
   { name: 'Incidentes', href: '/incidents', icon: AlertTriangle, roles: ['admin', 'analista', 'incidents'] },
+  { name: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['admin', 'analista', 'notifications'] },
+  { name: 'IoT', href: '/iot', icon: Cpu, roles: ['admin', 'analista', 'iot'] },
+  { name: 'Pagos', href: '/payments', icon: CreditCard, roles: ['admin', 'analista', 'payments'] },
+  { name: 'Inventario', href: '/inventory', icon: Package, roles: ['admin', 'analista', 'inventory'] },
+  { name: 'CRM', href: '/crm', icon: Users, roles: ['admin', 'analista', 'crm'] },
   // Modulos planeados (roadmap): visibles solo para admin hasta que se implementen.
-  { name: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['admin'] },
-  { name: 'IoT', href: '/iot', icon: Cpu, roles: ['admin'] },
-  { name: 'Pagos', href: '/payments', icon: CreditCard, roles: ['admin'] },
   { name: 'Logística', href: '/logistics', icon: Truck, roles: ['admin'] },
-  { name: 'Inventario', href: '/inventory', icon: Package, roles: ['admin'] },
-  { name: 'CRM', href: '/crm', icon: Users, roles: ['admin'] },
   { name: 'Identidad', href: '/security', icon: Shield, roles: ['admin'] },
 ]
 

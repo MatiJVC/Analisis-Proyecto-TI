@@ -101,6 +101,11 @@ ORDERS_ROLES = ["admin", "analista", "orders"]
 SALUD_ROLES = ["admin", "analista", "salud"]
 INCIDENTS_ROLES = ["admin", "analista", "incidents"]
 OVERVIEW_ROLES = ["admin", "analista"]
+IOT_ROLES = ["admin", "analista", "iot"]
+NOTIF_ROLES = ["admin", "analista", "notifications"]
+PAYMENTS_ROLES = ["admin", "analista", "payments"]
+INVENTORY_ROLES = ["admin", "analista", "inventory"]
+CRM_ROLES = ["admin", "analista", "crm"]
 
 
 router = APIRouter(
@@ -778,6 +783,7 @@ async def get_overview_alerts_endpoint(
 
 @router.get(
     "/iot/kpis",
+    dependencies=[Depends(require_any_role(IOT_ROLES))],
     response_model=SensorKPIs,
     summary="KPIs consolidados de sensores IoT",
     description="Retorna todos los KPIs principales. Algunos son real-time (siempre actual), otros pueden filtrarse por días"
@@ -818,6 +824,7 @@ async def get_iot_kpis_endpoint(
 
 @router.get(
     "/iot/status",
+    dependencies=[Depends(require_any_role(IOT_ROLES))],
     response_model=SensorsStatusResponse,
     summary="Estado actual de sensores",
     description="Obtiene estado actual de todos los sensores IoT (online, battery, última lectura, etc). El parámetro days es opcional e informativo"
@@ -871,6 +878,7 @@ async def get_iot_sensors_status(
 
 @router.get(
     "/iot/by-type",
+    dependencies=[Depends(require_any_role(IOT_ROLES))],
     response_model=SensorsByTypeResponse,
     summary="Distribución de sensores por tipo",
     description="Obtiene distribución y estado actual de sensores agrupados por tipo. El parámetro days es opcional e informativo"
@@ -918,6 +926,7 @@ async def get_iot_sensors_by_type(
 
 @router.get(
     "/iot/events",
+    dependencies=[Depends(require_any_role(IOT_ROLES))],
     response_model=EventsResponse,
     summary="Eventos recientes de IoT",
     description="Obtiene eventos/alertas recientes desde raw_events (sensor_offline, low_battery, anomaly_detected, etc)"
@@ -978,6 +987,7 @@ async def get_iot_events_endpoint(
 
 @router.get(
     "/iot/timeline",
+    dependencies=[Depends(require_any_role(IOT_ROLES))],
     response_model=IoTTimelineResponse,
     summary="Línea de tiempo de IoT",
     description="Obtiene timeline de actividad IoT agrupada por fecha (últimos N días)"
@@ -1041,6 +1051,7 @@ async def get_iot_timeline_endpoint(
 
 @router.get(
     "/iot/health",
+    dependencies=[Depends(require_any_role(IOT_ROLES))],
     summary="Health check de analítica IoT",
     description="Verifica disponibilidad del servicio de analítica IoT"
 )
@@ -1064,6 +1075,7 @@ async def iot_health_check(db: Session = Depends(get_db)):
 
 @router.get(
     "/notifications/kpis",
+    dependencies=[Depends(require_any_role(NOTIF_ROLES))],
     response_model=NotificationKPIs,
     summary="KPIs consolidados de notificaciones",
     description="Tasa de fallos, uptime del servicio y backpressure ratio"
@@ -1084,6 +1096,7 @@ async def get_notifications_kpis_endpoint(
 
 @router.get(
     "/notifications/channels",
+    dependencies=[Depends(require_any_role(NOTIF_ROLES))],
     response_model=NotificationChannelsResponse,
     summary="Métricas por canal",
     description="Tasa de entrega y fallos desglosada por canal (sms, email, push)"
@@ -1110,6 +1123,7 @@ async def get_notifications_channels_endpoint(
 
 @router.get(
     "/notifications/status",
+    dependencies=[Depends(require_any_role(NOTIF_ROLES))],
     response_model=NotificationStatusResponse,
     summary="Distribución por estado",
     description="Conteo de notificaciones en estado enviado, entregado y fallido"
@@ -1135,6 +1149,7 @@ async def get_notifications_status_endpoint(
 
 @router.get(
     "/notifications/timeline",
+    dependencies=[Depends(require_any_role(NOTIF_ROLES))],
     response_model=NotificationTimelineResponse,
     summary="Línea de tiempo de notificaciones",
     description="Volumen diario de notificaciones enviadas, entregadas y fallidas"

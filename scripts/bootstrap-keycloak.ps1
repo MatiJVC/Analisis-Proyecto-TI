@@ -43,7 +43,12 @@ $roles = @(
     @{ name="salud";         description="Acceso a /kpis/salud/*" },
     @{ name="subscriptions"; description="Acceso a /kpis/subscriptions/*" },
     @{ name="orders";        description="Acceso a /kpis/orders/*" },
-    @{ name="incidents";     description="Acceso a /kpis/incidents/*" }
+    @{ name="incidents";     description="Acceso a /kpis/incidents/*" },
+    @{ name="iot";           description="Acceso a /kpis/iot/*" },
+    @{ name="notifications"; description="Acceso a /kpis/notifications/*" },
+    @{ name="payments";      description="Acceso a /kpis/payments/* (placeholder)" },
+    @{ name="inventory";     description="Acceso a /kpis/inventory/* (placeholder)" },
+    @{ name="crm";           description="Acceso a /kpis/crm/* (placeholder)" }
 )
 foreach ($r in $roles) {
     try {
@@ -59,12 +64,17 @@ foreach ($r in $roles) {
 # 3) Usuarios + passwords + asignacion de rol
 Write-Host "`n[2/4] Usuarios y roles asignados..." -ForegroundColor Cyan
 $users = @(
-    @{ username="admingrupo9";   email="admin@ucn.cl";         password="admin";        role="admin" },
-    @{ username="analista";      email="analista@ucn.cl";      password="Analista123!"; role="analista" },
-    @{ username="salud";         email="salud@ucn.cl";         password="Salud123!";    role="salud" },
-    @{ username="subscriptions"; email="subscriptions@ucn.cl"; password="Subs123!";     role="subscriptions" },
-    @{ username="orders";        email="orders@ucn.cl";        password="Orders123!";   role="orders" },
-    @{ username="incidents";     email="incidents@ucn.cl";     password="Inc123!";      role="incidents" }
+    @{ username="admingrupo9";    email="admin@ucn.cl";          password="admin";        role="admin" },
+    @{ username="analista";       email="analista@ucn.cl";       password="Analista123!"; role="analista" },
+    @{ username="salud";          email="salud@ucn.cl";          password="Salud123!";    role="salud" },
+    @{ username="subscriptions";  email="subscriptions@ucn.cl";  password="Subs123!";     role="subscriptions" },
+    @{ username="orders";         email="orders@ucn.cl";         password="Orders123!";   role="orders" },
+    @{ username="incidents";      email="incidents@ucn.cl";      password="Inc123!";      role="incidents" },
+    @{ username="iot";            email="iot@ucn.cl";            password="Iot123!";      role="iot" },
+    @{ username="notificaciones"; email="notificaciones@ucn.cl"; password="Notif123!";    role="notifications" },
+    @{ username="pagos";          email="pagos@ucn.cl";          password="Pagos123!";    role="payments" },
+    @{ username="inventario";     email="inventario@ucn.cl";     password="Inv123!";      role="inventory" },
+    @{ username="crm";            email="crm@ucn.cl";            password="Crm123!";      role="crm" }
 )
 foreach ($u in $users) {
     $userJson = @{
