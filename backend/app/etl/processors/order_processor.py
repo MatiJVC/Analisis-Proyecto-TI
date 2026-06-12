@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 
@@ -120,78 +120,18 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
             delta = fact_order.updated_at - fact_order.created_at
             fact_order.processing_time_seconds = int(delta.total_seconds())
         
-        # 7. Persistir en BD
+        # 8. Persistir en BD
         db.add(fact_order)
         db.flush()
-        
+
         logger.info("ORDER-ETL evento %s procesado para orden %s", raw_event.event_type, order_id)
-        
+
         return fact_order
-    
+
     except OrderPayloadValidationError as e:
         logger.warning("ORDER-ETL error validación: %s", e)
         raise
 
     except Exception as e:
         logger.exception("ORDER-ETL error procesando evento %s", raw_event.id)
-        raise
-
-
-def process_orders_events(db: Session, limit: int = 1000) -> Dict[str, Any]:
-
-    stats = {
-        "total": 0,
-        "processed": 0,
-        "errors": 0,
-        "event_types": {}
-    }
-    
-    try:
-        # 1. Obtener eventos sin procesar del dominio orders
-        unprocessed = db.query(RawEvent).filter(
-            RawEvent.source == "orders",
-            RawEvent.processed == False
-        ).limit(limit).all()
-        
-        stats["total"] = len(unprocessed)
-        logger.info("ORDER-ETL iniciando procesamiento de %s eventos", stats['total'])
-
-        if not unprocessed:
-            logger.info("ORDER-ETL no hay eventos sin procesar")
-            return stats
-        
-        # 2. Procesar cada evento
-        for raw_event in unprocessed:
-            try:
-                process_order_event(db, raw_event)
-                
-                # Marcar como procesado
-                raw_event.processed = True
-                db.add(raw_event)
-                
-                stats["processed"] += 1
-                event_type = raw_event.event_type
-                stats["event_types"][event_type] = stats["event_types"].get(event_type, 0) + 1
-                
-            except OrderPayloadValidationError:
-                stats["errors"] += 1
-                raw_event.processed = True
-                db.add(raw_event)
-            except Exception as e:
-                stats["errors"] += 1
-                logger.exception("ORDER-ETL error procesando evento en batch")
-
-        # 3. Commit final
-        db.commit()
-
-        logger.info(
-            "ORDER-ETL resumen: %s/%s procesados, %s errores, tipos: %s",
-            stats['processed'], stats['total'], stats['errors'], stats['event_types'],
-        )
-
-        return stats
-
-    except Exception as e:
-        db.rollback()
-        logger.exception("ORDER-ETL error crítico")
         raise

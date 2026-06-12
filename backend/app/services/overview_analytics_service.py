@@ -209,7 +209,7 @@ def _human_message(event: RawEvent) -> str:
 def get_recent_activities(db: Session, limit: int = 10) -> List[Dict[str, Any]]:
     rows = (
         db.query(RawEvent)
-        .order_by(RawEvent.created_at.desc())
+        .order_by(RawEvent.ingested_at.desc())
         .limit(limit)
         .all()
     )
@@ -218,7 +218,7 @@ def get_recent_activities(db: Session, limit: int = 10) -> List[Dict[str, Any]]:
             "id": f"ACT-{r.id:06d}",
             "type": _classify_activity_type(r.source),
             "message": _human_message(r),
-            "timestamp": _format_relative_time(r.created_at),
+            "timestamp": _format_relative_time(r.ingested_at),
             "status": _classify_activity_status(r.event_type or ""),
         }
         for r in rows

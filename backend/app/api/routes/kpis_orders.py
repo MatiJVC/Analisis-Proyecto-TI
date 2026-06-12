@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_any_role
 from app.db import get_db
+from app.redis_client import redis_client
+from app.api.kpi_cache import get_kpi_cache, set_kpi_cache
 from app.schemas.orders_analytics_schema import (
     KPISResponse,
     ChannelsResponse,
@@ -40,7 +42,13 @@ async def get_orders_kpis(
     db: Session = Depends(get_db),
 ) -> KPISResponse:
     try:
+        cache_key = f"kpi:orders:{days}"
+        cached = get_kpi_cache(redis_client, cache_key)
+        if cached:
+            return KPISResponse(**cached)
+
         kpis = get_all_kpis(db, days)
+        set_kpi_cache(redis_client, cache_key, kpis)
         return KPISResponse(
             total_orders=kpis["total_orders"],
             delivery_rate=kpis["delivery_rate"],

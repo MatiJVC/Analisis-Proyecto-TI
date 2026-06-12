@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Index
+from sqlalchemy import Column, Integer, String, Numeric, Boolean, DateTime, Index
 
 from app.db.base import Base
 
@@ -12,15 +12,15 @@ class FactOrder(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # Business Keys
-    order_id = Column(Integer, nullable=False, unique=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
+    order_id = Column(String(100), nullable=False, unique=True, index=True)
+    customer_id = Column(String(100), nullable=False, index=True)
 
     # Dimensions
     sales_channel = Column(String(50), nullable=False, index=True)
     status = Column(String(50), nullable=False, index=True)
 
     # Metrics
-    total_amount = Column(Float, nullable=False, default=0.0)
+    total_amount = Column(Numeric(18, 2), nullable=False, default=0)
     total_items = Column(Integer, nullable=False, default=0)
 
     # Fulfillment Flags

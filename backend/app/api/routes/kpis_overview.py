@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_any_role
 from app.db import get_db
+from app.redis_client import redis_client
+from app.api.kpi_cache import get_kpi_cache, set_kpi_cache
 from app.schemas.overview_kpi_schema import (
     ActivityRow,
     AlertRow,
@@ -34,7 +36,13 @@ router = APIRouter(tags=["kpis — overview"])
 )
 async def get_overview_kpis_endpoint(db: Session = Depends(get_db)) -> GlobalKPIsResponse:
     try:
-        return GlobalKPIsResponse(**get_global_kpis(db))
+        cached = get_kpi_cache(redis_client, "kpi:overview")
+        if cached:
+            return GlobalKPIsResponse(**cached)
+
+        result = get_global_kpis(db)
+        set_kpi_cache(redis_client, "kpi:overview", result, ttl=60)
+        return GlobalKPIsResponse(**result)
     except Exception:
         logger.exception("Error KPIs overview")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")

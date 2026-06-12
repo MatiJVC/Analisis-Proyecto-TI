@@ -284,15 +284,15 @@ def get_iot_events(db: Session, days: Optional[int] = None, limit: int = 100) ->
         RawEvent.id,
         RawEvent.source,
         RawEvent.event_type,
-        RawEvent.created_at,
+        RawEvent.ingested_at,
         RawEvent.payload,
     ).filter(RawEvent.source == "iot_devices")
-    
+
     if days:
         cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        query = query.filter(RawEvent.created_at >= cutoff_date)
-    
-    query = query.order_by(RawEvent.created_at.desc()).limit(limit)
+        query = query.filter(RawEvent.ingested_at >= cutoff_date)
+
+    query = query.order_by(RawEvent.ingested_at.desc()).limit(limit)
     
     results = query.all()
     

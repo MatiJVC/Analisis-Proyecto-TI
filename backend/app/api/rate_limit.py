@@ -1,7 +1,7 @@
 import os
 import time
 import uuid
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from threading import Lock
 
 from fastapi import Depends, HTTPException, status
@@ -36,14 +36,22 @@ if redis_client is not None:
     _lua_sha = redis_client.script_load(_LUA_RATE_LIMIT)
 
 # In-memory fallback — válido solo para desarrollo con un único worker.
+# OrderedDict + cap evita que _per_user_locks y _windows crezcan sin límite.
+_MAX_TRACKED_USERS = 5_000
 _registry_lock = Lock()
-_per_user_locks: dict[str, Lock] = {}
-_windows: dict[str, deque] = defaultdict(deque)
+_per_user_locks: OrderedDict[str, Lock] = OrderedDict()
+_windows: OrderedDict[str, deque] = OrderedDict()
 
 
 def _get_user_lock(user_sub: str) -> Lock:
     with _registry_lock:
-        if user_sub not in _per_user_locks:
+        if user_sub in _per_user_locks:
+            _per_user_locks.move_to_end(user_sub)
+        else:
+            if len(_per_user_locks) >= _MAX_TRACKED_USERS:
+                _oldest = next(iter(_per_user_locks))
+                del _per_user_locks[_oldest]
+                _windows.pop(_oldest, None)
             _per_user_locks[user_sub] = Lock()
         return _per_user_locks[user_sub]
 
@@ -77,7 +85,7 @@ def require_rate_limit(user: KeycloakUser = Depends(get_current_user)) -> None:
         cutoff = now - WINDOW_SECONDS
         lock = _get_user_lock(user.sub)
         with lock:
-            window = _windows[user.sub]
+            window = _windows.setdefault(user.sub, deque())
             while window and window[0] < cutoff:
                 window.popleft()
             if len(window) >= RATE_LIMIT:
