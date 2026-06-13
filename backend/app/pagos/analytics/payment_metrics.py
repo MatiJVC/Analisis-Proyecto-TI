@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Tuple
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, literal_column

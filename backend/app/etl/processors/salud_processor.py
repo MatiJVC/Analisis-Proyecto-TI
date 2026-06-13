@@ -5,7 +5,7 @@ Resuelve claves de negocio a surrogate ids (*_dim_id) en facts.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time as time_type, timezone
+from datetime import date, datetime, time as time_type, timezone
 from typing import Any, Callable, Dict, Optional
 import uuid as uuid_pkg
 

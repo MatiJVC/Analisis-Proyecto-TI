@@ -6,7 +6,7 @@ Contiene funciones para calcular KPIs desde fact_iot y raw_events.
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date, Integer, case
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Tuple, Optional
 
 logger = logging.getLogger(__name__)

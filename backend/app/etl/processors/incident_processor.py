@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy.exc import SQLAlchemyError

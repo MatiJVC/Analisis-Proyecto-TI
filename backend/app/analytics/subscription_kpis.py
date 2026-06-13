@@ -1,6 +1,6 @@
 from sqlalchemy import func, and_, or_, cast, Date, Integer
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from app.models import FactSubscription
 

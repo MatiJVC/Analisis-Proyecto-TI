@@ -8,7 +8,7 @@ payments, logistics); para esos KPIs reporta 0 o derivados.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func

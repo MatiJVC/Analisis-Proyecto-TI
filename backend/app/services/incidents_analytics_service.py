@@ -2,7 +2,7 @@
 Consultas analíticas sobre fact_incidents (warehouse de incidentes).
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, func

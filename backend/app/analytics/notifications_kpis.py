@@ -5,7 +5,7 @@ Contiene funciones para calcular KPIs desde fact_notifications y raw_events.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date, Integer, case
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 
 from app.models.warehouse.fact_notifications import FactNotifications
