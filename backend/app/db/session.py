@@ -21,8 +21,8 @@ engine = create_engine(
     DATABASE_URL,
     echo=os.getenv("SQL_ECHO", "False").lower() == "true",
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,   # 4 workers × 10 (size + overflow) = 40 conexiones máx → bajo el límite default de PG (100)
+    max_overflow=5,
 )
 
 SessionLocal = sessionmaker(

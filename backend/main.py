@@ -1,13 +1,16 @@
 import asyncio
+import logging
 import os
 import uuid as _uuid
 from contextlib import asynccontextmanager
+
+logger = logging.getLogger(__name__)
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import KeycloakUser, get_current_user, get_current_user_optional
-from app.api.rate_limit import require_rate_limit
+from app.api.rate_limit import require_rate_limit, RATE_LIMIT_TABLE_DDL
 from app.api.routes.events import ETL_QUEUE, _run_etl, retry_stale_events
 from app.db import engine, Base
 from app.redis_client import redis_client
@@ -51,15 +54,43 @@ if _ENVIRONMENT == "development":
     Base.metadata.create_all(bind=engine)
 
 
+def _setup_pg_rate_limit_table() -> None:
+    """Crea la tabla api_rate_limit si no existe (idempotente)."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for stmt in RATE_LIMIT_TABLE_DDL.strip().split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                conn.execute(text(stmt))
+        conn.commit()
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    await asyncio.to_thread(_setup_pg_rate_limit_table)
+
     async def _periodic_retry():
         while True:
             await asyncio.sleep(300)
             try:
                 await asyncio.to_thread(retry_stale_events)
             except Exception:
-                pass
+                logger.exception("_periodic_retry: error en retry_stale_events")
+
+    async def _cleanup_rate_limit_table():
+        """Borra ventanas antiguas de api_rate_limit cada 10 minutos."""
+        from sqlalchemy import text
+        while True:
+            await asyncio.sleep(600)
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(
+                        "DELETE FROM api_rate_limit "
+                        "WHERE window_start < NOW() - INTERVAL '10 minutes'"
+                    ))
+                    conn.commit()
+            except Exception:
+                logger.exception("_cleanup_rate_limit_table: error en limpieza")
 
     async def _etl_consumer():
         while True:
@@ -75,20 +106,15 @@ async def lifespan(_app: FastAPI):
                 await asyncio.sleep(1)
 
     retry_task = asyncio.create_task(_periodic_retry())
+    cleanup_task = asyncio.create_task(_cleanup_rate_limit_table())
     consumer_task = asyncio.create_task(_etl_consumer()) if redis_client is not None else None
 
     yield
 
-    retry_task.cancel()
-    try:
-        await retry_task
-    except asyncio.CancelledError:
-        pass
-
-    if consumer_task is not None:
-        consumer_task.cancel()
+    for task in filter(None, [retry_task, cleanup_task, consumer_task]):
+        task.cancel()
         try:
-            await consumer_task
+            await task
         except asyncio.CancelledError:
             pass
 

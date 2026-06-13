@@ -71,14 +71,19 @@ def _enqueue_etl(event_id: uuid.UUID, source: str) -> bool:
 
 
 def retry_stale_events() -> None:
-    """Reintenta el ETL para eventos stuck en processed=False por más de 5 minutos."""
+    """Reintenta el ETL para eventos stuck en processed=False por más de 5 minutos.
+
+    Usa SELECT FOR UPDATE SKIP LOCKED para que múltiples workers no procesen
+    el mismo evento simultáneamente sin necesitar Redis.
+    """
     cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=5)
     db: Session = SessionLocal()
     try:
         stale = (
             db.query(RawEvent)
             .filter(RawEvent.processed == False, RawEvent.ingested_at < cutoff)
-            .limit(100)
+            .with_for_update(skip_locked=True)
+            .limit(25)
             .all()
         )
         if stale:
@@ -86,7 +91,8 @@ def retry_stale_events() -> None:
         for raw_event in stale:
             if raw_event.source in _ETL_PROCESSORS:
                 if not _enqueue_etl(raw_event.event_id, raw_event.source):
-                    # Redis no disponible o ya en cola — procesar inline como fallback
+                    # Redis no disponible — procesar inline; el FOR UPDATE lock
+                    # en 'db' impide que otro worker tome el mismo evento.
                     _run_etl(raw_event.event_id, raw_event.source)
     except Exception:
         logger.exception("retry_stale_events: error consultando eventos pendientes")
