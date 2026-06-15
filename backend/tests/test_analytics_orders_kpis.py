@@ -15,16 +15,9 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.analytics.orders_kpis import (
-    get_average_order_value,
-    get_delivery_rate,
-    get_fulfillment_rate,
+    get_all_kpis,
     get_orders_by_channel,
     get_orders_by_status,
-    get_payment_failure_rate,
-    get_payment_success_rate,
-    get_revenue_total,
-    get_stock_reservation_rate,
-    get_total_orders,
 )
 from app.models import FactOrder
 
@@ -56,154 +49,96 @@ def _seed(db: Session, *orders: FactOrder) -> None:
     db.flush()
 
 
-# ─── get_total_orders ─────────────────────────────────────────────────────────
+# ─── get_all_kpis ─────────────────────────────────────────────────────────────
 
-class TestGetTotalOrders:
-    def test_tabla_vacia_devuelve_cero(self, db_session: Session):
-        assert get_total_orders(db_session) == 0
+class TestGetAllKpis:
+    def test_tabla_vacia_devuelve_ceros(self, db_session: Session):
+        result = get_all_kpis(db_session)
+        assert result["total_orders"] == 0
+        assert result["delivery_rate"] == 0.0
+        assert result["payment_failure_rate"] == 0.0
+        assert result["payment_success_rate"] == 0.0
+        assert result["revenue_total"] == 0.0
+        assert result["average_order_value"] == 0.0
+        assert result["stock_reservation_rate"] == 0.0
+        assert result["fulfillment_rate"] == 0.0
+        assert result["sla_compliance"] == 0.0
 
-    def test_cuenta_todas_las_filas(self, db_session: Session):
+    def test_total_orders(self, db_session: Session):
         _seed(db_session, _order(1), _order(2), _order(3))
-        assert get_total_orders(db_session) == 3
+        assert get_all_kpis(db_session)["total_orders"] == 3
 
-    def test_devuelve_int(self, db_session: Session):
-        _seed(db_session, _order(10))
-        assert isinstance(get_total_orders(db_session), int)
-
-
-# ─── get_delivery_rate ────────────────────────────────────────────────────────
-
-class TestGetDeliveryRate:
-    def test_tabla_vacia_devuelve_cero(self, db_session: Session):
-        assert get_delivery_rate(db_session) == 0.0
-
-    def test_todas_entregadas(self, db_session: Session):
-        _seed(db_session,
-              _order(1, delivery_completed=True),
-              _order(2, delivery_completed=True))
-        assert get_delivery_rate(db_session) == 1.0
-
-    def test_ninguna_entregada(self, db_session: Session):
-        _seed(db_session, _order(1), _order(2))
-        assert get_delivery_rate(db_session) == 0.0
-
-    def test_entrega_parcial_un_tercio(self, db_session: Session):
+    def test_delivery_rate_parcial(self, db_session: Session):
         _seed(db_session,
               _order(1, delivery_completed=True),
               _order(2),
               _order(3))
-        assert get_delivery_rate(db_session) == round(1 / 3, 2)
+        assert get_all_kpis(db_session)["delivery_rate"] == round(1 / 3, 2)
 
-    def test_columna_correcta_no_confunde_con_status(self, db_session: Session):
-        """Verifica que filtra por 'delivery_completed' (Boolean), no por status."""
+    def test_delivery_rate_columna_correcta(self, db_session: Session):
+        """Verifica que filtra por delivery_completed (Boolean), no por status."""
         _seed(db_session,
               _order(1, status="delivered", delivery_completed=False),
               _order(2, delivery_completed=True))
-        # Solo orden 2 tiene delivery_completed=True → 0.5
-        assert get_delivery_rate(db_session) == 0.5
+        assert get_all_kpis(db_session)["delivery_rate"] == 0.5
 
-
-# ─── get_payment_failure_rate / get_payment_success_rate ─────────────────────
-
-class TestGetPaymentRates:
-    def test_tasa_fallida_cero_sin_intentos(self, db_session: Session):
-        _seed(db_session, _order(1, status="created"))
-        assert get_payment_failure_rate(db_session) == 0.0
-
-    def test_un_fallido_de_dos_intentos(self, db_session: Session):
-        _seed(db_session,
-              _order(1, status="paid"),
-              _order(2, status="payment_failed"))
-        assert get_payment_failure_rate(db_session) == 0.5
-
-    def test_tasa_exitosa_todos_pagados(self, db_session: Session):
-        _seed(db_session,
-              _order(1, status="paid"),
-              _order(2, status="paid"))
-        assert get_payment_success_rate(db_session) == 1.0
-
-    def test_tasas_suman_uno(self, db_session: Session):
-        """Con un mix de pagados y fallidos, éxito + fallo = 1.0."""
+    def test_payment_rates_suman_uno(self, db_session: Session):
         _seed(db_session,
               _order(1, status="paid"),
               _order(2, status="paid"),
               _order(3, status="payment_failed"))
-        s = get_payment_success_rate(db_session)
-        f = get_payment_failure_rate(db_session)
-        assert round(s + f, 10) == 1.0
+        result = get_all_kpis(db_session)
+        assert round(result["payment_success_rate"] + result["payment_failure_rate"], 10) == 1.0
 
-    def test_ordenes_en_otros_estados_no_se_cuentan(self, db_session: Session):
-        """status='created' o 'stock_reserved' no son intentos de pago."""
+    def test_payment_rates_cero_sin_intentos(self, db_session: Session):
+        _seed(db_session, _order(1, status="created"))
+        result = get_all_kpis(db_session)
+        assert result["payment_failure_rate"] == 0.0
+        assert result["payment_success_rate"] == 0.0
+
+    def test_ordenes_en_otros_estados_no_cuentan_como_intentos(self, db_session: Session):
         _seed(db_session,
               _order(1, status="created"),
               _order(2, status="stock_reserved"),
               _order(3, status="paid"))
-        # Solo orden 3 es intento de pago → success rate = 1.0
-        assert get_payment_success_rate(db_session) == 1.0
+        assert get_all_kpis(db_session)["payment_success_rate"] == 1.0
 
-
-# ─── get_revenue_total ────────────────────────────────────────────────────────
-
-class TestGetRevenueTotal:
-    def test_tabla_vacia_devuelve_cero(self, db_session: Session):
-        assert get_revenue_total(db_session) == 0.0
-
-    def test_suma_solo_ordenes_con_pago_exitoso(self, db_session: Session):
+    def test_revenue_solo_pagos_exitosos(self, db_session: Session):
         _seed(db_session,
               _order(1, payment_success=True,  total_amount=30000.0),
               _order(2, payment_success=True,  total_amount=20000.0),
-              _order(3, payment_success=False, total_amount=99999.0))  # no debe sumarse
-        assert get_revenue_total(db_session) == 50000.0
+              _order(3, payment_success=False, total_amount=99999.0))
+        assert get_all_kpis(db_session)["revenue_total"] == 50000.0
 
-    def test_excluye_ordenes_sin_pago(self, db_session: Session):
-        _seed(db_session, _order(1, payment_success=False, total_amount=99999.0))
-        assert get_revenue_total(db_session) == 0.0
-
-
-# ─── get_average_order_value ─────────────────────────────────────────────────
-
-class TestGetAverageOrderValue:
-    def test_tabla_vacia_devuelve_cero(self, db_session: Session):
-        assert get_average_order_value(db_session) == 0.0
-
-    def test_promedio_correcto(self, db_session: Session):
-        # revenue = 40 000, total_orders = 2 → avg = 20 000
+    def test_average_order_value(self, db_session: Session):
         _seed(db_session,
               _order(1, payment_success=True, total_amount=10000.0),
               _order(2, payment_success=True, total_amount=30000.0))
-        assert get_average_order_value(db_session) == 20000.0
+        assert get_all_kpis(db_session)["average_order_value"] == 20000.0
 
-
-# ─── get_stock_reservation_rate ──────────────────────────────────────────────
-
-class TestGetStockReservationRate:
-    def test_sin_reservas_devuelve_cero(self, db_session: Session):
-        _seed(db_session, _order(1, stock_reserved=False))
-        assert get_stock_reservation_rate(db_session) == 0.0
-
-    def test_reserva_parcial(self, db_session: Session):
+    def test_stock_reservation_rate(self, db_session: Session):
         _seed(db_session,
               _order(1, stock_reserved=True),
               _order(2, stock_reserved=False))
-        assert get_stock_reservation_rate(db_session) == 0.5
+        assert get_all_kpis(db_session)["stock_reservation_rate"] == 0.5
 
-
-# ─── get_fulfillment_rate ─────────────────────────────────────────────────────
-
-class TestGetFulfillmentRate:
-    def test_tabla_vacia_devuelve_cero(self, db_session: Session):
-        assert get_fulfillment_rate(db_session) == 0.0
-
-    def test_requiere_status_paid_y_delivery_completed(self, db_session: Session):
-        """
-        Solo cuenta como 'fulfilled' si status='paid' AND delivery_completed=True.
-        Un 'paid' sin entrega y un 'delivered' sin status 'paid' no cuentan.
-        """
+    def test_fulfillment_requiere_paid_y_delivery_completed(self, db_session: Session):
+        """Solo cuenta como fulfilled si status='paid' AND delivery_completed=True."""
         _seed(db_session,
-              _order(1, status="paid",      delivery_completed=True),   # ✓ fulfilled
-              _order(2, status="paid",      delivery_completed=False),  # ✗ sin entrega
-              _order(3, status="delivered", delivery_completed=True))   # ✗ status incorrecto
-        assert get_fulfillment_rate(db_session) == round(1 / 3, 2)
+              _order(1, status="paid",      delivery_completed=True),   # fulfilled
+              _order(2, status="paid",      delivery_completed=False),  # sin entrega
+              _order(3, status="delivered", delivery_completed=True))   # status incorrecto
+        assert get_all_kpis(db_session)["fulfillment_rate"] == round(1 / 3, 2)
+
+    def test_devuelve_todas_las_claves(self, db_session: Session):
+        result = get_all_kpis(db_session)
+        expected_keys = {
+            "total_orders", "delivery_rate", "payment_failure_rate",
+            "payment_success_rate", "avg_processing_time_hours",
+            "revenue_total", "average_order_value", "sla_compliance",
+            "stock_reservation_rate", "fulfillment_rate",
+        }
+        assert expected_keys.issubset(result.keys())
 
 
 # ─── get_orders_by_channel ────────────────────────────────────────────────────

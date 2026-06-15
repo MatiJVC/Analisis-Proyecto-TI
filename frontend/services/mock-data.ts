@@ -4,12 +4,11 @@ import type {
   OrderStatus,
   OrderTimeline,
   SubscriptionKPIs,
-  SubscriptionTimeline,
   NotificationKPIs,
   NotificationChannel,
   IoTKPIs,
-  IoTDevice,
   IoTAlert,
+  SensorsStatusResponse,
   IncidentKPIs,
   IncidentTimeline,
   Incident,
@@ -41,19 +40,24 @@ import type {
 
 // Orders Mock Data
 export const ordersKPIs: OrdersKPIs = {
-  totalOrders: 15847,
-  deliveryRate: 94.2,
-  revenue: 1284500,
-  avgOrderValue: 81.05,
-  slaCompliance: 97.8,
+  total_orders: 15847,
+  delivery_rate: 94.2,
+  revenue_total: 1284500,
+  average_order_value: 81.05,
+  sla_compliance: 97.8,
   pendingOrders: 234,
+  avg_processing_time_hours: 2.4,
+  fulfillment_rate: 96.1,
+  payment_failure_rate: 1.2,
+  payment_success_rate: 98.8,
+  stock_reservation_rate: 87.3,
 };
 
 export const orderChannels: OrderChannel[] = [
-  { name: "Web", value: 6420, percentage: 40.5 },
-  { name: "Mobile App", value: 5280, percentage: 33.3 },
-  { name: "API", value: 2847, percentage: 18.0 },
-  { name: "POS", value: 1300, percentage: 8.2 },
+  { channel: "web",    order_count: 6420, percentage_of_total: 40.5, revenue: 520260 },
+  { channel: "mobile", order_count: 5280, percentage_of_total: 33.3, revenue: 427740 },
+  { channel: "api",    order_count: 2847, percentage_of_total: 18.0, revenue: 230607 },
+  { channel: "pos",    order_count: 1300, percentage_of_total:  8.2, revenue: 105300 },
 ];
 
 export const orderStatuses: OrderStatus[] = [
@@ -68,24 +72,36 @@ export const orderTimeline: OrderTimeline[] = Array.from(
   (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - (29 - i));
-    const orders = Math.floor(400 + Math.random() * 200);
+    const order_count = Math.floor(400 + Math.random() * 200);
     return {
       date: date.toISOString().split("T")[0],
-      orders,
-      delivered: Math.floor(orders * (0.92 + Math.random() * 0.06)),
-      failed: Math.floor(orders * (0.01 + Math.random() * 0.02)),
+      order_count,
+      delivered_count: Math.floor(order_count * (0.92 + Math.random() * 0.06)),
+      failed_count: Math.floor(order_count * (0.01 + Math.random() * 0.02)),
+      revenue: order_count * 81,
+      avg_order_value: 81,
     };
   },
 );
 
 // Subscriptions Mock Data
 export const subscriptionKPIs: SubscriptionKPIs = {
-  activeSubscriptions: 8452,
-  renewalRate: 87.3,
-  churn: 2.8,
-  monthlyRevenue: 423600,
-  autoserviceRate: 76.5,
-  newSubscriptions: 342,
+  stats: {
+    with_billing_success: 7850,
+    total: 8752,
+    renewed: 7420,
+    active: 8452,
+    with_auto_service: 6465,
+    new_subscriptions: 342,
+    cancellations: 238,
+    net_growth: 104,
+    churn_rate: 2.8,
+    avg_lifetime_months: 18.5,
+  },
+  active_subscriptions: 8452,
+  renewal_rate: 87.3,
+  error_rate: 1.2,
+  auto_service_rate: 76.5,
 };
 
 export const subscriptionTimeline: SubscriptionTimelineResponse = {
@@ -184,76 +200,34 @@ export const notificationTimeline: NotificationTimelineResponse = {
 
 // IoT Mock Data
 export const iotKPIs: IoTKPIs = {
-  activeSensors: 1247,
-  totalAlerts: 89,
-  avgLatency: 23,
-  invalidPackets: 0.02,
-  uptime: 99.8,
+  total_sensors: 1247,
+  online_sensors: 1203,
+  offline_sensors: 44,
+  availability_rate: 99.8,
+  avg_battery_level: 72.4,
+  low_battery_count: 89,
+  data_validity_rate: 99.98,
+  anomalies_detected: 89,
+  avg_processing_latency_ms: 23,
 };
 
-export const iotDevices: IoTDevice[] = [
-  {
-    id: "IOT-001",
-    name: "Temperature Sensor A1",
-    status: "online",
-    lastSeen: "2 min ago",
-    batteryLevel: 87,
-  },
-  {
-    id: "IOT-002",
-    name: "Humidity Sensor B2",
-    status: "online",
-    lastSeen: "1 min ago",
-    batteryLevel: 92,
-  },
-  {
-    id: "IOT-003",
-    name: "Motion Detector C3",
-    status: "warning",
-    lastSeen: "15 min ago",
-    batteryLevel: 23,
-  },
-  {
-    id: "IOT-004",
-    name: "Pressure Sensor D4",
-    status: "online",
-    lastSeen: "3 min ago",
-    batteryLevel: 78,
-  },
-  {
-    id: "IOT-005",
-    name: "GPS Tracker E5",
-    status: "offline",
-    lastSeen: "2 hours ago",
-    batteryLevel: 0,
-  },
-];
+export const iotDevices: SensorsStatusResponse = {
+  total_sensors: 5,
+  online_count: 4,
+  offline_count: 1,
+  sensors: [
+    { sensor_id: "IOT-001", asset_id: "ASSET-A1", sensor_type: "temperature", is_online: true,  battery_level: 87, last_reading_at: "2026-06-15T14:58:00Z", location: "Zone A", has_anomaly: false, low_battery_alert: false },
+    { sensor_id: "IOT-002", asset_id: "ASSET-B2", sensor_type: "humidity",    is_online: true,  battery_level: 92, last_reading_at: "2026-06-15T14:59:00Z", location: "Zone B", has_anomaly: false, low_battery_alert: false },
+    { sensor_id: "IOT-003", asset_id: "ASSET-C3", sensor_type: "motion",      is_online: true,  battery_level: 23, last_reading_at: "2026-06-15T14:45:00Z", location: "Zone C", has_anomaly: false, low_battery_alert: true  },
+    { sensor_id: "IOT-004", asset_id: "ASSET-D4", sensor_type: "pressure",    is_online: true,  battery_level: 78, last_reading_at: "2026-06-15T14:57:00Z", location: "Zone D", has_anomaly: false, low_battery_alert: false },
+    { sensor_id: "IOT-005", asset_id: "ASSET-E5", sensor_type: "gps",         is_online: false, battery_level:  0, last_reading_at: "2026-06-15T12:59:00Z", location: "Zone E", has_anomaly: true,  low_battery_alert: true  },
+  ],
+};
 
 export const iotAlerts: IoTAlert[] = [
-  {
-    id: "ALT-001",
-    deviceId: "IOT-003",
-    type: "Low Battery",
-    severity: "warning",
-    message: "Battery below 25%",
-    timestamp: "10 min ago",
-  },
-  {
-    id: "ALT-002",
-    deviceId: "IOT-005",
-    type: "Device Offline",
-    severity: "critical",
-    message: "Device not responding",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "ALT-003",
-    deviceId: "IOT-001",
-    type: "Temperature Alert",
-    severity: "warning",
-    message: "Temperature exceeds threshold",
-    timestamp: "30 min ago",
-  },
+  { event_id: "ALT-001", sensor_id: "IOT-003", event_type: "low_battery",          severity: "warning",  message: "Battery below 25%",            timestamp: "2026-06-15T14:50:00Z" },
+  { event_id: "ALT-002", sensor_id: "IOT-005", event_type: "device_offline",        severity: "critical", message: "Device not responding",         timestamp: "2026-06-15T12:59:00Z" },
+  { event_id: "ALT-003", sensor_id: "IOT-001", event_type: "temperature_threshold", severity: "warning",  message: "Temperature exceeds threshold", timestamp: "2026-06-15T14:30:00Z" },
 ];
 
 // Incidents Mock Data
@@ -792,12 +766,12 @@ export const crmSLA: CRMSLASummary = {
 
 // Global KPIs for Overview
 export const globalKPIs = {
-  totalOrders: ordersKPIs.totalOrders,
-  deliveryRate: ordersKPIs.deliveryRate,
+  totalOrders: ordersKPIs.total_orders,
+  deliveryRate: ordersKPIs.delivery_rate,
   revenue: paymentKPIs.revenue,
-  notificationSuccessRate: notificationKPIs.deliveryRate,
-  activeSubscriptions: subscriptionKPIs.activeSubscriptions,
-  iotAlerts: iotKPIs.totalAlerts,
+  notificationSuccessRate: notificationKPIs.delivery_rate,
+  activeSubscriptions: subscriptionKPIs.active_subscriptions,
+  iotAlerts: iotKPIs.anomalies_detected,
   incidentCount: incidentKPIs.activeIncidents,
   paymentFailureRate: paymentKPIs.failureRate,
 };

@@ -7,7 +7,7 @@ from sqlalchemy import func, text
 from app.pagos.models.fact_sla_events import FactSlaEvent
 from app.models.warehouse.alerts import PriorityAlert
 
-SLA_THRESHOLD = 99.5  # porcentaje mínimo de uptime requerido
+MIN_UPTIME_PCT = 99.5  # porcentaje mínimo de uptime requerido
 
 
 def compute_uptime(db: Session, hours: int = 24) -> float:
@@ -58,7 +58,7 @@ def compute_uptime(db: Session, hours: int = 24) -> float:
 
 
 def check_sla_and_alert(db: Session, uptime_pct: float, hours: int) -> bool:
-    """Escribe una PriorityAlert si el uptime cae bajo SLA_THRESHOLD.
+    """Escribe una PriorityAlert si el uptime cae bajo MIN_UPTIME_PCT.
 
     Evita duplicar alertas: solo inserta una nueva si no existe ya una
     alerta de tipo 'sla_breach' no reconocida en las últimas 2 horas.
@@ -66,7 +66,7 @@ def check_sla_and_alert(db: Session, uptime_pct: float, hours: int) -> bool:
     Returns:
         True si se creó una nueva alerta, False en caso contrario.
     """
-    if uptime_pct >= SLA_THRESHOLD:
+    if uptime_pct >= MIN_UPTIME_PCT:
         return False
 
     two_hours_ago = datetime.now(tz=timezone.utc) - timedelta(hours=2)
@@ -84,22 +84,25 @@ def check_sla_and_alert(db: Session, uptime_pct: float, hours: int) -> bool:
         severity="critical",
         message=(
             f"SLA de pagos por debajo del umbral: uptime={uptime_pct:.2f}% "
-            f"(mínimo requerido: {SLA_THRESHOLD}%) en las últimas {hours}h."
+            f"(mínimo requerido: {MIN_UPTIME_PCT}%) en las últimas {hours}h."
         ),
         alert_metadata={
             "uptime_pct": uptime_pct,
-            "sla_threshold": SLA_THRESHOLD,
+            "sla_threshold": MIN_UPTIME_PCT,
             "window_hours": hours,
         },
         acknowledged=False,
     )
     db.add(alert)
-    db.commit()
+    db.flush()
     return True
 
 
 def get_sla_status(db: Session, hours: int = 24) -> Dict[str, Any]:
     """Devuelve el estado SLA completo: uptime, eventos activos y alertas recientes.
+
+    Pure read — no DB writes. Alert creation runs in a background task via
+    run_sla_alert_check(), decoupled from the HTTP request lifecycle.
 
     Returns dict con:
       - uptime_pct: float — disponibilidad real en la ventana
@@ -107,10 +110,8 @@ def get_sla_status(db: Session, hours: int = 24) -> Dict[str, Any]:
       - sla_threshold: float — umbral configurado (99.5)
       - active_events: list — eventos downtime/degraded aún abiertos
       - recent_alerts: list — alertas de SLA no reconocidas de las últimas 24h
-      - alert_created: bool — si esta llamada generó una nueva alerta
     """
     uptime_pct = compute_uptime(db, hours)
-    alert_created = check_sla_and_alert(db, uptime_pct, hours)
 
     # Eventos activos (timestamp_fin IS NULL)
     active_rows = db.query(FactSlaEvent).filter(
@@ -147,9 +148,28 @@ def get_sla_status(db: Session, hours: int = 24) -> Dict[str, Any]:
 
     return {
         "uptime_pct": uptime_pct,
-        "sla_ok": uptime_pct >= SLA_THRESHOLD,
-        "sla_threshold": SLA_THRESHOLD,
+        "sla_ok": uptime_pct >= MIN_UPTIME_PCT,
+        "sla_threshold": MIN_UPTIME_PCT,
         "active_events": active_events,
         "recent_alerts": recent_alerts,
-        "alert_created": alert_created,
     }
+
+
+def run_sla_alert_check(hours: int = 24) -> None:
+    """Opens its own DB session and creates a PriorityAlert if SLA is breached.
+
+    Intended exclusively for periodic background calls (not HTTP request handlers).
+    """
+    import logging
+    from app.db.session import SessionLocal
+    _log = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        uptime_pct = compute_uptime(db, hours)
+        check_sla_and_alert(db, uptime_pct, hours)
+        db.commit()
+    except Exception:
+        _log.exception("run_sla_alert_check: error al evaluar SLA")
+        db.rollback()
+    finally:
+        db.close()

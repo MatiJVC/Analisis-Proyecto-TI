@@ -1,15 +1,29 @@
-from pydantic import BaseModel, Field
+import json
+
+from pydantic import BaseModel, Field, model_validator
 from typing import Any, Dict, Literal
 from uuid import UUID
 from datetime import datetime
 
+_MAX_PAYLOAD_BYTES = 65_536  # 64 KiB
+
+EventSource = Literal[
+    "orders",
+    "subscriptions",
+    "salud",
+    "incidents",
+    "crm",
+    "inventory",
+    "payments",
+    "iot",
+    "notifications",
+]
+
 
 class EventCreate(BaseModel):
-    source: str = Field(
+    source: EventSource = Field(
         ...,
-        min_length=1,
-        max_length=50,
-        description="Proyecto origen del evento (ej: subscriptions, orders, salud, incidents)",
+        description="Proyecto origen del evento",
     )
     event_type: str = Field(
         ...,
@@ -23,6 +37,15 @@ class EventCreate(BaseModel):
         default_factory=dict,
         description="Cuerpo libre del evento — cualquier objeto JSON válido",
     )
+
+    @model_validator(mode="after")
+    def _check_payload_size(self) -> "EventCreate":
+        size = len(json.dumps(self.payload, separators=(",", ":")).encode())
+        if size > _MAX_PAYLOAD_BYTES:
+            raise ValueError(
+                f"payload demasiado grande: {size} bytes (máximo {_MAX_PAYLOAD_BYTES})"
+            )
+        return self
 
     model_config = {
         "json_schema_extra": {
@@ -63,15 +86,5 @@ class EventResponse(BaseModel):
     payload: Dict[str, Any] | None = None
     processed: bool
     ingested_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# Kept for backward compatibility with any existing callers
-class EventCreateResponse(BaseModel):
-    message: str
-    event_id: UUID
-    source: str
-    event_type: str
 
     model_config = {"from_attributes": True}

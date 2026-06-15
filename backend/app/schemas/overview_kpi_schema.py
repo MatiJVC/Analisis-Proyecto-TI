@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class GlobalKPIsResponse(BaseModel):
+
     totalOrders: int
     deliveryRate: float = Field(..., description="Porcentaje de entregas exitosas (0-100)")
     revenue: float
@@ -36,3 +37,15 @@ class AlertRow(BaseModel):
     severity: str
     source: str
     timestamp: str
+
+
+class ServiceStatusesResponse(BaseModel):
+    data: List[ServiceStatusRow]
+
+
+class ActivitiesResponse(BaseModel):
+    data: List[ActivityRow]
+
+
+class AlertsResponse(BaseModel):
+    data: List[AlertRow]

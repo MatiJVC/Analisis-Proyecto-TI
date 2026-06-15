@@ -4,7 +4,7 @@
  */
 import { getAccessToken } from '@/lib/keycloak'
 
-const DEFAULT_API_BASE = 'http://127.0.0.1:8000'
+const DEFAULT_API_BASE = 'http://127.0.0.1:8000/v1'
 
 export function getApiBaseUrl(): string {
   const raw = process.env.NEXT_PUBLIC_API_URL?.trim()

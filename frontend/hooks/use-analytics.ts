@@ -168,10 +168,10 @@ export function useStockStatusSummary() {
   return useSWR('inventory-stock-status', inventoryAPI.getStockStatus, swrConfig)
 }
 
-export function useLocationsCatalog(locationType?: string) {
+export function useLocationsCatalog() {
   return useSWR(
-    `inventory-locations-${locationType ?? 'all'}`,
-    () => inventoryAPI.getLocationsCatalog(locationType),
+    'inventory-locations',
+    () => inventoryAPI.getLocationsCatalog(),
     swrConfig,
   )
 }

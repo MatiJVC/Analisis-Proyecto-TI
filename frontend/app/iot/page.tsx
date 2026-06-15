@@ -73,10 +73,8 @@ function IotContent() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "online":
-      case true:
         return "text-success";
       case "offline":
-      case false:
         return "text-destructive";
       case "warning":
         return "text-warning";

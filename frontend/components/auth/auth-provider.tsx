@@ -11,6 +11,13 @@ import {
 import type Keycloak from 'keycloak-js'
 import { getKeycloak } from '@/lib/keycloak'
 
+// Only honoured when NODE_ENV === 'development'. Next.js inlines both values at
+// build time, so this expression is dead-code-eliminated in production builds
+// regardless of what .env.local contains.
+const DISABLE_AUTH =
+  process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true' &&
+  process.env.NODE_ENV === 'development'
+
 interface AuthContextValue {
   keycloak: Keycloak | null
   authenticated: boolean
@@ -42,6 +49,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initStarted = useRef(false)
 
   useEffect(() => {
+    if (DISABLE_AUTH) {
+      setAuthenticated(true)
+      setReady(true)
+      return
+    }
+
     if (initStarted.current) return
     initStarted.current = true
 
@@ -95,6 +108,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         </div>
       </div>
     )
+  }
+
+  if (DISABLE_AUTH) {
+    const devValue: AuthContextValue = {
+      keycloak: null,
+      authenticated: true,
+      username: 'dev-user',
+      email: 'dev@localhost',
+      roles: ['admin'],
+      logout: () => {},
+    }
+    return <AuthContext.Provider value={devValue}>{children}</AuthContext.Provider>
   }
 
   if (!authenticated || !keycloak) {

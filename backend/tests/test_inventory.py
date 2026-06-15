@@ -231,7 +231,7 @@ class TestLocationsCatalog:
     def test_returns_200(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.api.routes.inventory.get_locations_catalog",
-            lambda db, location_type, is_active, city: [_LOCATION_ROW],
+            lambda db: [_LOCATION_ROW],
         )
         _patch_now(monkeypatch)
         assert client.get("/v1/inventory/locations/catalog").status_code == 200
@@ -239,27 +239,28 @@ class TestLocationsCatalog:
     def test_response_contains_data_and_total(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.api.routes.inventory.get_locations_catalog",
-            lambda db, location_type, is_active, city: [_LOCATION_ROW],
+            lambda db: [_LOCATION_ROW],
         )
         _patch_now(monkeypatch)
         body = client.get("/v1/inventory/locations/catalog").json()
         assert "data" in body
         assert body["total"] == 1
 
-    def test_location_type_filter_passed_to_service(self, client: TestClient, monkeypatch):
-        received = {}
-        def _capture(db, location_type, is_active, city):
-            received["location_type"] = location_type
-            return []
-        monkeypatch.setattr("app.api.routes.inventory.get_locations_catalog", _capture)
+    def test_response_contains_location_fields(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.routes.inventory.get_locations_catalog",
+            lambda db: [_LOCATION_ROW],
+        )
         _patch_now(monkeypatch)
-        client.get("/v1/inventory/locations/catalog?location_type=WAREHOUSE")
-        assert received["location_type"] == "WAREHOUSE"
+        body = client.get("/v1/inventory/locations/catalog").json()
+        row = body["data"][0]
+        for field in ("location_id", "location_name", "location_type", "is_active"):
+            assert field in row, f"Missing field: {field}"
 
     def test_empty_catalog_returns_200_with_empty_list(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.api.routes.inventory.get_locations_catalog",
-            lambda db, location_type, is_active, city: [],
+            lambda db: [],
         )
         _patch_now(monkeypatch)
         body = client.get("/v1/inventory/locations/catalog").json()
@@ -281,7 +282,7 @@ class TestProductsThresholds:
     def test_returns_200(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.api.routes.inventory.get_products_thresholds",
-            lambda db, sku_id, category, below_threshold: [_THRESHOLD_ROW],
+            lambda db, sku_id, below_threshold: [_THRESHOLD_ROW],
         )
         _patch_now(monkeypatch)
         assert client.get("/v1/inventory/products/thresholds").status_code == 200
@@ -289,7 +290,7 @@ class TestProductsThresholds:
     def test_response_contains_summary_counts(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.api.routes.inventory.get_products_thresholds",
-            lambda db, sku_id, category, below_threshold: [_THRESHOLD_ROW],
+            lambda db, sku_id, below_threshold: [_THRESHOLD_ROW],
         )
         _patch_now(monkeypatch)
         body = client.get("/v1/inventory/products/thresholds").json()
@@ -299,7 +300,7 @@ class TestProductsThresholds:
 
     def test_below_threshold_filter_true(self, client: TestClient, monkeypatch):
         received = {}
-        def _capture(db, sku_id, category, below_threshold):
+        def _capture(db, sku_id, below_threshold):
             received["below_threshold"] = below_threshold
             return [_THRESHOLD_ROW]
         monkeypatch.setattr("app.api.routes.inventory.get_products_thresholds", _capture)
@@ -309,7 +310,7 @@ class TestProductsThresholds:
 
     def test_below_threshold_filter_false(self, client: TestClient, monkeypatch):
         received = {}
-        def _capture(db, sku_id, category, below_threshold):
+        def _capture(db, sku_id, below_threshold):
             received["below_threshold"] = below_threshold
             return []
         monkeypatch.setattr("app.api.routes.inventory.get_products_thresholds", _capture)
@@ -325,7 +326,7 @@ class TestProductsThresholds:
         ]
         monkeypatch.setattr(
             "app.api.routes.inventory.get_products_thresholds",
-            lambda db, sku_id, category, below_threshold: rows,
+            lambda db, sku_id, below_threshold: rows,
         )
         _patch_now(monkeypatch)
         body = client.get("/v1/inventory/products/thresholds").json()

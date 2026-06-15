@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_any_role
 from app.db import get_db
-from app.redis_client import redis_client
 from app.api.kpi_cache import get_kpi_cache, set_kpi_cache
 from app.schemas.orders_analytics_schema import (
     KPISResponse,
@@ -21,7 +20,6 @@ from app.analytics.orders_kpis import (
     get_orders_by_channel,
     get_orders_by_status,
     get_orders_by_date,
-    get_total_orders,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,12 +41,12 @@ async def get_orders_kpis(
 ) -> KPISResponse:
     try:
         cache_key = f"kpi:orders:{days}"
-        cached = get_kpi_cache(redis_client, cache_key)
+        cached = get_kpi_cache(cache_key)
         if cached:
             return KPISResponse(**cached)
 
         kpis = get_all_kpis(db, days)
-        set_kpi_cache(redis_client, cache_key, kpis)
+        set_kpi_cache(cache_key, kpis)
         return KPISResponse(
             total_orders=kpis["total_orders"],
             delivery_rate=kpis["delivery_rate"],
@@ -77,10 +75,10 @@ async def get_orders_by_channels(
     db: Session = Depends(get_db),
 ) -> ChannelsResponse:
     try:
-        total = get_total_orders(db, days)
+        channels_data = get_orders_by_channel(db, days)
+        total = sum(count for _, count, _ in channels_data)
         if total == 0:
             return ChannelsResponse(total_orders=0, channels=[])
-        channels_data = get_orders_by_channel(db, days)
         channels_list = []
         for channel, count, revenue in channels_data:
             if channel is None:
@@ -112,10 +110,10 @@ async def get_orders_by_statuses(
     db: Session = Depends(get_db),
 ) -> StatusResponse:
     try:
-        total = get_total_orders(db, days)
+        status_data = get_orders_by_status(db, days)
+        total = sum(count for _, count in status_data)
         if total == 0:
             return StatusResponse(total_orders=0, statuses=[])
-        status_data = get_orders_by_status(db, days)
         statuses_list = []
         for status_name, count in status_data:
             percentage = (count / total * 100) if total > 0 else 0
@@ -178,7 +176,7 @@ async def get_orders_timeline(
 )
 async def orders_health_check(db: Session = Depends(get_db)):
     try:
-        return {"status": "healthy", "orders_in_database": get_total_orders(db)}
+        return {"status": "healthy", "orders_in_database": get_all_kpis(db)["total_orders"]}
     except Exception:
         logger.exception("Health check órdenes failed")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Error interno del servidor")

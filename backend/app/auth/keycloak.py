@@ -38,6 +38,10 @@ JWKS_CACHE_TTL = int(os.getenv("KEYCLOAK_JWKS_TTL", "3600"))
 ISSUER = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
 JWKS_URL = f"{ISSUER}/protocol/openid-connect/certs"
 
+# Hardcoded allowlist — never accept "none" or symmetric algorithms even if
+# Keycloak's JWKS were somehow tampered or misconfigured.
+ALLOWED_ALGORITHMS = {"RS256", "RS384", "RS512"}
+
 
 class KeycloakAuthError(Exception):
     """Error de autenticación contra Keycloak."""
@@ -45,6 +49,20 @@ class KeycloakAuthError(Exception):
 
 _jwks_cache: dict[str, Any] = {"keys": None, "fetched_at": 0.0}
 _jwks_lock = threading.Lock()
+
+
+def _fetch_and_cache_jwks() -> dict[str, Any]:
+    """HTTP fetch + cache update. Caller MUST hold _jwks_lock."""
+    try:
+        resp = httpx.get(JWKS_URL, timeout=5.0)
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise KeycloakAuthError(
+            f"No se pudo obtener JWKS de Keycloak en {JWKS_URL}: {exc}"
+        ) from exc
+    _jwks_cache["keys"] = resp.json()
+    _jwks_cache["fetched_at"] = time.time()
+    return _jwks_cache["keys"]
 
 
 def _get_jwks() -> dict[str, Any]:
@@ -55,18 +73,7 @@ def _get_jwks() -> dict[str, Any]:
             and now - _jwks_cache["fetched_at"] < JWKS_CACHE_TTL
         ):
             return _jwks_cache["keys"]
-
-        try:
-            resp = httpx.get(JWKS_URL, timeout=5.0)
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise KeycloakAuthError(
-                f"No se pudo obtener JWKS de Keycloak en {JWKS_URL}: {exc}"
-            ) from exc
-
-        _jwks_cache["keys"] = resp.json()
-        _jwks_cache["fetched_at"] = now
-        return _jwks_cache["keys"]
+        return _fetch_and_cache_jwks()
 
 
 def _find_key(kid: str) -> dict[str, Any] | None:
@@ -74,11 +81,12 @@ def _find_key(kid: str) -> dict[str, Any] | None:
     for key in jwks.get("keys", []):
         if key.get("kid") == kid:
             return key
-    # Si no encontramos el kid puede ser una clave nueva: invalidamos cache y
-    # reintentamos una sola vez.
+    # Key not in cache — could be a newly rotated key. Invalidate and re-fetch
+    # inside a single lock scope so concurrent threads don't each trigger a
+    # separate HTTP call to Keycloak.
     with _jwks_lock:
         _jwks_cache["fetched_at"] = 0.0
-    jwks = _get_jwks()
+        jwks = _fetch_and_cache_jwks()
     for key in jwks.get("keys", []):
         if key.get("kid") == kid:
             return key
@@ -100,11 +108,15 @@ def decode_token(token: str) -> dict[str, Any]:
     if key is None:
         raise KeycloakAuthError("Clave pública no encontrada para el kid del token")
 
+    alg = key.get("alg", "RS256")
+    if alg not in ALLOWED_ALGORITHMS:
+        raise KeycloakAuthError(f"Algoritmo JWK no permitido: {alg}")
+
     try:
         claims = jwt.decode(
             token,
             key,
-            algorithms=[key.get("alg", "RS256")],
+            algorithms=[alg],
             audience=KEYCLOAK_AUDIENCE,
             issuer=ISSUER,
         )

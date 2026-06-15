@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Index, JSON
+from sqlalchemy import Column, String, Boolean, Integer, Index, JSON
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from app.db.base import Base
@@ -21,19 +21,26 @@ class RawEvent(Base):
     payload    = Column(JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict)
 
     # ETL orchestration — set to TRUE once event is promoted to Silver/Gold
-    processed = Column(Boolean, nullable=False, default=False)
+    processed   = Column(Boolean, nullable=False, default=False)
+    # Retry tracking — incremented on each failed ETL attempt; failed=True
+    # permanently removes the event from the retry queue after MAX_ETL_RETRIES.
+    retry_count = Column(Integer, nullable=False, default=0)
+    failed      = Column(Boolean, nullable=False, default=False)
 
 
     __table_args__ = (
         # Composite used by Power BI views (source filter + time range)
         Index("idx_fre_source_ingested", "source", "ingested_at"),
-        # ETL partial index — only unprocessed rows, keeps index small
-        Index("idx_fre_processed_source", "processed", "source",
-              postgresql_where=(~Column("processed", Boolean))),
+        # idx_fre_pending is intentionally omitted here — it is a partial index
+        # (WHERE processed = FALSE AND failed = FALSE) managed by ETL_RETRY_DDL
+        # in api/routes/events.py, which runs at startup via CREATE INDEX IF NOT EXISTS.
+        # Defining it here too would be misleading: SQLAlchemy's ORM dialect cannot
+        # express the raw SQL WHERE clause reliably, and the DDL version takes precedence.
     )
 
     def __repr__(self) -> str:
         return (
             f"<RawEvent(event_id={self.event_id}, source={self.source}, "
-            f"event_type={self.event_type}, processed={self.processed})>"
+            f"event_type={self.event_type}, processed={self.processed}, "
+            f"retry_count={self.retry_count}, failed={self.failed})>"
         )

@@ -10,6 +10,7 @@ from app.pagos.schemas.payment_analytics_schema import (
     PaymentFailuresResponse,
     PaymentKPIsResponse,
     PaymentTimelinePoint,
+    PaymentTimelineResponse,
     SlaStatusResponse,
 )
 from app.pagos.analytics.payment_metrics import get_conciliation_summary, get_failure_reasons
@@ -35,8 +36,7 @@ router = APIRouter(
     description=(
         "Consulta fact_payments_events y retorna métricas agregadas del rolling window "
         "indicado (default: últimas 24 h). "
-        "El campo uptime refleja disponibilidad real desde fact_sla_events; "
-        "si cae bajo 99.5% se registra automáticamente una alerta crítica."
+        "El campo uptime refleja disponibilidad real desde fact_sla_events."
     ),
 )
 async def get_payments_kpis(
@@ -55,7 +55,7 @@ async def get_payments_kpis(
 
 @router.get(
     "/payments/timeline",
-    response_model=List[PaymentTimelinePoint],
+    response_model=PaymentTimelineResponse,
     summary="Timeline horario de transacciones de pagos",
     description=(
         "Agrupa fact_payments_events por hora y devuelve conteos de transacciones "
@@ -67,10 +67,10 @@ async def get_payments_kpis(
 async def get_payments_timeline(
     hours: int = Query(default=24, ge=1, le=168, description="Ventana en horas (1–168, default 24)"),
     db: Session = Depends(get_db),
-) -> List[PaymentTimelinePoint]:
+) -> PaymentTimelineResponse:
     try:
         data = get_payment_timeline(db, hours=hours)
-        return [PaymentTimelinePoint(**point) for point in data]
+        return PaymentTimelineResponse(data=[PaymentTimelinePoint(**point) for point in data])
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -133,9 +133,8 @@ async def get_payments_conciliation(
     summary="Estado SLA del servicio de pagos",
     description=(
         "Calcula el uptime real desde fact_sla_events para la ventana indicada. "
-        "Si el uptime cae bajo 99.5% se registra automáticamente una PriorityAlert crítica "
-        "(deduplicada: máximo una alerta cada 2 horas). "
-        "Retorna eventos de downtime activos y alertas SLA no reconocidas de las últimas 24h."
+        "Retorna eventos de downtime activos y alertas SLA no reconocidas de las últimas 24h. "
+        "Las alertas críticas son creadas por una tarea de fondo periódica, no por este endpoint."
     ),
 )
 async def get_payments_sla(

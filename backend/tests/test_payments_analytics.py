@@ -59,7 +59,6 @@ _SLA_DATA = {
     "sla_threshold": 99.5,
     "active_events": [],
     "recent_alerts": [],
-    "alert_created": False,
 }
 
 
@@ -134,23 +133,25 @@ class TestPaymentKPIs:
 
 class TestPaymentTimeline:
 
-    def test_returns_200_list(self, client: TestClient, monkeypatch):
+    def test_returns_200_with_data_envelope(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.pagos.routes.analytics.get_payment_timeline",
             lambda db, hours: _TIMELINE_DATA,
         )
         response = client.get("/v1/analytics/payments/timeline")
         assert response.status_code == 200
-        assert isinstance(response.json(), list)
-        assert len(response.json()) == 2
+        body = response.json()
+        assert "data" in body
+        assert isinstance(body["data"], list)
+        assert len(body["data"]) == 2
 
     def test_each_point_has_required_fields(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.pagos.routes.analytics.get_payment_timeline",
             lambda db, hours: _TIMELINE_DATA,
         )
-        points = client.get("/v1/analytics/payments/timeline").json()
-        for point in points:
+        body = client.get("/v1/analytics/payments/timeline").json()
+        for point in body["data"]:
             for field in ("date", "successful", "failed", "amount"):
                 assert field in point, f"Missing field '{field}' in timeline point"
 
@@ -158,14 +159,14 @@ class TestPaymentTimeline:
         _patch_all(monkeypatch)
         assert client.get("/v1/analytics/payments/timeline?hours=169").status_code == 422
 
-    def test_empty_timeline_returns_empty_list(self, client: TestClient, monkeypatch):
+    def test_empty_timeline_returns_empty_data(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
             "app.pagos.routes.analytics.get_payment_timeline",
             lambda db, hours: [],
         )
         response = client.get("/v1/analytics/payments/timeline")
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json() == {"data": []}
 
     def test_service_error_returns_500(self, client: TestClient, monkeypatch):
         monkeypatch.setattr(
@@ -267,7 +268,7 @@ class TestPaymentSLA:
         )
         body = client.get("/v1/analytics/payments/sla").json()
         for field in ("uptime_pct", "sla_ok", "sla_threshold", "active_events",
-                      "recent_alerts", "alert_created"):
+                      "recent_alerts"):
             assert field in body, f"Missing field: {field}"
 
     def test_sla_ok_true_when_uptime_above_threshold(self, client: TestClient, monkeypatch):

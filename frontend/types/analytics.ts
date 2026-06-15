@@ -23,7 +23,6 @@ export interface OrdersKPIs {
 }
 
 export interface OrderChannel {
-  channels: Array<OrderChannel>
   channel: string
   order_count: number
   percentage_of_total: number

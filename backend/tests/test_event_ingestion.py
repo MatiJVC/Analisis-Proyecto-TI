@@ -283,7 +283,7 @@ class TestValidationFailures:
 
     def test_missing_source_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"event_type": "pedido_creado", "payload": {"order_id": "ORD-001"}},
         )
         assert response.status_code == 422
@@ -291,7 +291,7 @@ class TestValidationFailures:
 
     def test_missing_event_type_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "payload": {"order_id": "ORD-001"}},
         )
         assert response.status_code == 422
@@ -305,9 +305,9 @@ class TestValidationFailures:
     # --- constraint violations ---------------------------------------------
 
     def test_empty_source_string_returns_422(self, client: TestClient, mock_db: MagicMock):
-        """min_length=1 on source — empty string is not allowed."""
+        """Empty string is not a valid EventSource."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "", "event_type": "pedido_creado", "payload": {}},
         )
         assert response.status_code == 422
@@ -315,16 +315,25 @@ class TestValidationFailures:
 
     def test_empty_event_type_string_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "event_type": "", "payload": {}},
         )
         assert response.status_code == 422
         mock_db.add.assert_not_called()
 
-    def test_source_exceeding_max_length_returns_422(self, client: TestClient, mock_db: MagicMock):
-        """max_length=50 on source."""
+    def test_unknown_source_returns_422(self, client: TestClient, mock_db: MagicMock):
+        """Unknown sources are rejected immediately with 422 — never stored in raw_events."""
         response = client.post(
-            "/events",
+            "/v1/events",
+            json={"source": "unknown_service", "event_type": "some_event", "payload": {}},
+        )
+        assert response.status_code == 422
+        mock_db.add.assert_not_called()
+
+    def test_source_not_in_enum_returns_422(self, client: TestClient, mock_db: MagicMock):
+        """Any string not in the known EventSource literal is rejected."""
+        response = client.post(
+            "/v1/events",
             json={"source": "x" * 51, "event_type": "any", "payload": {}},
         )
         assert response.status_code == 422
@@ -335,7 +344,7 @@ class TestValidationFailures:
     def test_payload_as_string_returns_422(self, client: TestClient, mock_db: MagicMock):
         """payload must be a JSON object — a string is rejected."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={
                 "source": "orders",
                 "event_type": "pedido_creado",
@@ -348,7 +357,7 @@ class TestValidationFailures:
     def test_payload_as_array_returns_422(self, client: TestClient, mock_db: MagicMock):
         """Arrays are not valid payload — schema requires a JSON object."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={
                 "source": "orders",
                 "event_type": "pedido_creado",
@@ -360,7 +369,7 @@ class TestValidationFailures:
 
     def test_payload_as_integer_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "event_type": "pedido_creado", "payload": 99},
         )
         assert response.status_code == 422
@@ -368,7 +377,7 @@ class TestValidationFailures:
 
     def test_payload_as_null_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "event_type": "pedido_creado", "payload": None},
         )
         assert response.status_code == 422
@@ -379,7 +388,7 @@ class TestValidationFailures:
     def test_corrupt_json_body_returns_422(self, client: TestClient, mock_db: MagicMock):
         """Truncated JSON — FastAPI must reject before Pydantic even runs."""
         response = client.post(
-            "/events",
+            "/v1/events",
             content=b'{"source": "orders", "event_type": "pedido_creado", "payload":',
             headers={"Content-Type": "application/json"},
         )
@@ -491,6 +500,29 @@ class TestAuditMetadata:
 
     def test_no_db_write_on_validation_failure(self, client: TestClient, mock_db: MagicMock):
         """Nothing must touch the DB when the input is rejected by Pydantic."""
-        client.post("/v1/events", json={"source": ""})
+        client.post("/v1/events", json={"source": "unknown_service", "event_type": "x", "payload": {}})
         mock_db.add.assert_not_called()
         mock_db.commit.assert_not_called()
+
+    # --- payload size limit ------------------------------------------------
+
+    def test_oversized_payload_returns_422(self, client: TestClient, mock_db: MagicMock):
+        """A payload exceeding 64 KiB must be rejected before touching the DB."""
+        big_payload = {"data": "x" * 70_000}
+        response = client.post(
+            "/v1/events",
+            json={"source": "orders", "event_type": "pedido_creado", "payload": big_payload},
+        )
+        assert response.status_code == 422
+        mock_db.add.assert_not_called()
+
+    def test_payload_at_limit_is_accepted(self, client: TestClient, mock_db: MagicMock):
+        """A payload just under 64 KiB must pass validation."""
+        # Build a payload that serializes to just under 65 536 bytes.
+        # {"data":"x"*N} → len('{"data":"' + 'x'*N + '"}') = 10 + N
+        small_payload = {"data": "x" * (65_536 - 12)}
+        response = client.post(
+            "/v1/events",
+            json={"source": "orders", "event_type": "pedido_creado", "payload": small_payload},
+        )
+        assert response.status_code == 202

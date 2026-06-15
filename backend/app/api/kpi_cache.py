@@ -1,21 +1,11 @@
 """
-Caché de KPIs con dos backends:
+KPI cache — Single-Backend PostgreSQL architecture.
 
-  1. Redis (cuando está disponible) — caché compartida entre todos los workers.
-  2. TTLCache en-proceso (fallback) — caché local por worker, TTL idéntico.
-     Con 4 workers, cada uno cachea de forma independiente; a lo sumo se
-     calculan 4 veces el mismo KPI por minuto, lo cual es aceptable para
-     analytics que corren queries pesados sobre PostgreSQL.
-
-Uso (sin cambios en el código cliente):
-    cached = get_kpi_cache(redis_client, "kpi:orders:30")
-    if cached:
-        return cached
-    result = compute_kpis(...)
-    set_kpi_cache(redis_client, "kpi:orders:30", result)
-    return result
+TTLCache (in-process) is the canonical caching mechanism.
+With multiple workers each process caches independently; at most N workers
+recompute the same KPI per TTL window, which is acceptable for analytics
+queries against PostgreSQL.
 """
-import json
 import logging
 import threading
 from typing import Any, Optional
@@ -31,43 +21,18 @@ _local_cache: TTLCache = TTLCache(maxsize=500, ttl=_KPI_TTL_SECONDS)
 _cache_lock = threading.Lock()
 
 
-def get_kpi_cache(redis_client, key: str) -> Optional[Any]:
-    if redis_client is not None:
-        try:
-            raw = redis_client.get(key)
-            if raw:
-                return json.loads(raw)
-        except Exception:
-            logger.warning("kpi_cache: fallo al leer clave %s de Redis", key, exc_info=True)
-        return None
-
+def get_kpi_cache(key: str) -> Optional[Any]:
     with _cache_lock:
         return _local_cache.get(key)
 
 
-def set_kpi_cache(redis_client, key: str, value: Any, ttl: int = _KPI_TTL_SECONDS) -> None:
-    if redis_client is not None:
-        try:
-            redis_client.set(key, json.dumps(value, default=str), ex=ttl)
-        except Exception:
-            logger.warning("kpi_cache: fallo al escribir clave %s en Redis", key, exc_info=True)
-        return
-
+def set_kpi_cache(key: str, value: Any) -> None:
     with _cache_lock:
         _local_cache[key] = value
 
 
-def invalidate_kpi_cache(redis_client, prefix: str) -> None:
-    """Elimina todas las claves que empiecen con prefix (ej. 'kpi:orders:')."""
-    if redis_client is not None:
-        try:
-            keys = redis_client.keys(f"{prefix}*")
-            if keys:
-                redis_client.delete(*keys)
-        except Exception:
-            logger.warning("kpi_cache: fallo al invalidar prefijo %s en Redis", prefix, exc_info=True)
-        return
-
+def invalidate_kpi_cache(prefix: str) -> None:
+    """Remove all keys that start with prefix (e.g. 'kpi:orders:')."""
     with _cache_lock:
         to_remove = [k for k in list(_local_cache.keys()) if k.startswith(prefix)]
         for k in to_remove:

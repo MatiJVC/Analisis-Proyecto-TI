@@ -22,6 +22,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.kpi_cache import get_kpi_cache, set_kpi_cache
 from app.auth import require_any_role
 from app.db import get_db
 from app.schemas.inventory_query_schemas import (
@@ -29,7 +30,6 @@ from app.schemas.inventory_query_schemas import (
     InventorySnapshotResponse,
     InventoryStockStatusResponse,
     LocationsCatalogResponse,
-    LocationType,
     PaginationMeta,
     ProductsThresholdsResponse,
     StockStatus,
@@ -78,8 +78,14 @@ Retorna los indicadores clave de inventario agregados para el dashboard de anal�
 )
 async def get_kpis(db: Session = Depends(get_db)) -> InventoryKPIsResponse:
     try:
+        cache_key = "kpi:inventory:kpis"
+        cached = get_kpi_cache(cache_key)
+        if cached:
+            return InventoryKPIsResponse(**cached)
         kpis = get_inventory_kpis(db)
-        return InventoryKPIsResponse(**kpis, generated_at=_now_utc_iso())
+        response = InventoryKPIsResponse(**kpis, generated_at=_now_utc_iso())
+        set_kpi_cache(cache_key, response.model_dump())
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -110,12 +116,18 @@ Los estados se calculan igual que en `/inventory/snapshot` para consistencia.
 )
 async def get_stock_status(db: Session = Depends(get_db)) -> InventoryStockStatusResponse:
     try:
+        cache_key = "kpi:inventory:stock-status"
+        cached = get_kpi_cache(cache_key)
+        if cached:
+            return InventoryStockStatusResponse(**cached)
         data, total = get_stock_status_summary(db)
-        return InventoryStockStatusResponse(
+        response = InventoryStockStatusResponse(
             data=data,
             total_skus=total,
             generated_at=_now_utc_iso(),
         )
+        set_kpi_cache(cache_key, response.model_dump())
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -173,10 +185,6 @@ async def get_snapshot(
         Optional[str],
         Query(description="Filtrar por UUID de ubicación (formato texto). Ej: `a3bb189e-...`"),
     ] = None,
-    location_type: Annotated[
-        Optional[LocationType],
-        Query(description="Filtrar por tipo de ubicación: `WAREHOUSE`, `DISTRIBUTION_CENTER` o `RETAIL_POINT`"),
-    ] = None,
     stock_status: Annotated[
         Optional[StockStatus],
         Query(description="Filtrar por estado de stock: `NORMAL`, `CRITICAL` o `OUT_OF_STOCK`"),
@@ -185,12 +193,20 @@ async def get_snapshot(
 ) -> InventorySnapshotResponse:
 
     try:
+        stock_stat_val = stock_status.value if stock_status else None
+        cache_key = (
+            f"kpi:inventory:snapshot:{limit}:{offset}"
+            f":{sku_id}:{location_id}:{stock_stat_val}"
+        )
+        cached = get_kpi_cache(cache_key)
+        if cached:
+            return InventorySnapshotResponse(**cached)
+
         rows, total = get_inventory_snapshot(
             db=db,
             sku_id=sku_id,
             location_id=location_id,
-            location_type=location_type.value if location_type else None,
-            stock_status=stock_status.value   if stock_status  else None,
+            stock_status=stock_stat_val,
             limit=limit,
             offset=offset,
         )
@@ -199,7 +215,7 @@ async def get_snapshot(
         has_next = (offset + limit) < total
         has_prev = offset > 0
 
-        return InventorySnapshotResponse(
+        response = InventorySnapshotResponse(
             data=rows,
             meta=PaginationMeta(
                 total=total,
@@ -211,6 +227,8 @@ async def get_snapshot(
             ),
             generated_at=_now_utc_iso(),
         )
+        set_kpi_cache(cache_key, response.model_dump())
+        return response
 
     except HTTPException:
         raise
@@ -233,11 +251,12 @@ async def get_snapshot(
     description="""
 Retorna la lista de todas las ubicaciones físicas del módulo de Inventario.
 
-Filtros opcionales:
-- `location_type`: devuelve solo bodegas (`WAREHOUSE`), centros de distribución
-  (`DISTRIBUTION_CENTER`) o puntos de venta (`RETAIL_POINT`).
-- `is_active`: `true` para solo ubicaciones operativas (recomendado).
-- `city`: búsqueda parcial por ciudad (case-insensitive).
+Las ubicaciones se sintetizan desde `fact_inventory_alerts` (no existe aún una
+tabla `locations` dedicada). Por esta razón:
+- Todos los registros tienen `location_type = 'WAREHOUSE'`, `country = 'Chile'` e
+  `is_active = true` como valores derivados fijos.
+- No se exponen filtros por `location_type` ni `is_active` mientras no exista la
+  tabla de origen con esos datos reales.
 
 **Uso recomendado por Analítica:**
 - Ejecutar una vez en la carga inicial para poblar `dim_locations`.
@@ -245,36 +264,22 @@ Filtros opcionales:
 """,
 )
 async def get_locations(
-    location_type: Annotated[
-        Optional[LocationType],
-        Query(
-            description="Filtrar por tipo: `WAREHOUSE`, `DISTRIBUTION_CENTER`, `RETAIL_POINT`.",
-        ),
-    ] = None,
-    is_active: Annotated[
-        Optional[bool],
-        Query(description="Si se indica `true`, retorna solo ubicaciones operativas activas."),
-    ] = None,
-    city: Annotated[
-        Optional[str],
-        Query(min_length=2, max_length=100, description="Búsqueda parcial por nombre de ciudad."),
-    ] = None,
     db: Session = Depends(get_db),
 ) -> LocationsCatalogResponse:
 
     try:
-        rows = get_locations_catalog(
-            db=db,
-            location_type=location_type.value if location_type else None,
-            is_active=is_active,
-            city=city,
-        )
-
-        return LocationsCatalogResponse(
+        cache_key = "kpi:inventory:locations"
+        cached = get_kpi_cache(cache_key)
+        if cached:
+            return LocationsCatalogResponse(**cached)
+        rows = get_locations_catalog(db=db)
+        response = LocationsCatalogResponse(
             data=rows,
             total=len(rows),
             generated_at=_now_utc_iso(),
         )
+        set_kpi_cache(cache_key, response.model_dump())
+        return response
 
     except HTTPException:
         raise
@@ -305,7 +310,6 @@ Los SKUs se ordenan priorizando los más críticos:
 
 Filtros opcionales:
 - `sku_id`: búsqueda parcial por código SKU.
-- `category`: filtrar por categoría exacta del producto.
 - `below_threshold`: `true` para retornar solo SKUs en estado crítico o sin stock.
 
 **Uso recomendado por Analítica:**
@@ -320,10 +324,6 @@ async def get_thresholds(
         Optional[str],
         Query(description="Búsqueda parcial por código SKU (case-insensitive). Ej: `PROD-007`"),
     ] = None,
-    category: Annotated[
-        Optional[str],
-        Query(description="Filtrar por categoría exacta del producto. Ej: `Repuestos industriales`"),
-    ] = None,
     below_threshold: Annotated[
         Optional[bool],
         Query(
@@ -337,23 +337,29 @@ async def get_thresholds(
 ) -> ProductsThresholdsResponse:
 
     try:
+        cache_key = f"kpi:inventory:thresholds:{sku_id}:{below_threshold}"
+        cached = get_kpi_cache(cache_key)
+        if cached:
+            return ProductsThresholdsResponse(**cached)
+
         rows = get_products_thresholds(
             db=db,
             sku_id=sku_id,
-            category=category,
             below_threshold=below_threshold,
         )
 
         total_below   = sum(1 for r in rows if r.get("is_below_threshold"))
         total_out     = sum(1 for r in rows if r.get("is_out_of_stock"))
 
-        return ProductsThresholdsResponse(
+        response = ProductsThresholdsResponse(
             data=rows,
             total=len(rows),
             total_below_threshold=total_below,
             total_out_of_stock=total_out,
             generated_at=_now_utc_iso(),
         )
+        set_kpi_cache(cache_key, response.model_dump())
+        return response
 
     except HTTPException:
         raise

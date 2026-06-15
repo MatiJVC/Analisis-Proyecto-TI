@@ -20,7 +20,7 @@ from app.etl.processors import (
     process_subscription_event,
 )
 from app.etl.processors.iot_processor import process_iot_event
-from app.etl.processors.notification_proccessor import process_notification_event
+from app.etl.processors.notification_processor import process_notification_event
 from app.etl.processors.order_processor import process_order_event
 from app.etl.processors.payment_processor import process_payment_event
 from app.models.raw import RawEvent

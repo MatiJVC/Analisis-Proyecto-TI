@@ -1,3 +1,32 @@
+"""
+Canonical payment ETL processor — single authoritative implementation.
+
+Handled event types (source="payments"):
+
+  intento_pago
+    token_transaccion: str          (required)
+    transaction_id:    UUID         (required)
+    monto:             Decimal >= 0 (required)
+    timestamp_evento:  datetime UTC (required)
+    order_id:          str | null
+    subscription_id:   str | null
+
+  confirmar_pago
+    token_transaccion: str          (required, links back to intento_pago)
+    approved:          bool         (required)
+    timestamp_evento:  datetime UTC (required)
+    transaction_id:    UUID | null
+    codigo_error:      str | null
+
+  cierre_diario_completado
+    fecha:             date YYYY-MM-DD (required)
+    reported_total:    Decimal         (required)
+    reported_count:    int             (required)
+    timestamp_event:   datetime UTC    (required)
+    reference_id:      str | null
+
+Schemas: app.pagos.schemas.payment_schema, app.pagos.schemas.closure_schema
+"""
 import logging
 from sqlalchemy.orm import Session
 

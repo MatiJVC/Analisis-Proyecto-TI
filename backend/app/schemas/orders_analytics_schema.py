@@ -1,5 +1,5 @@
-"""
-Schemas Pydantic para respuestas de analítica de órdenes.
+﻿"""
+Schemas Pydantic para respuestas de analÃ­tica de Ã³rdenes.
 """
 
 from pydantic import BaseModel, Field
@@ -8,17 +8,17 @@ from datetime import datetime
 
 
 class KPISResponse(BaseModel):
-    """Response modelo para KPIs consolidados de órdenes."""
+    """Response modelo para KPIs consolidados de Ã³rdenes."""
     
-    total_orders: int = Field(..., description="Total de órdenes")
+    total_orders: int = Field(..., description="Total de Ã³rdenes")
     delivery_rate: float = Field(..., ge=0.0, le=1.0, description="Tasa de entregas completadas (0.0-1.0)")
     payment_failure_rate: float = Field(..., ge=0.0, le=1.0, description="Tasa de pagos fallidos (0.0-1.0)")
     payment_success_rate: float = Field(..., ge=0.0, le=1.0, description="Tasa de pagos exitosos (0.0-1.0)")
     avg_processing_time_hours: float = Field(..., description="Tiempo promedio de procesamiento en horas")
     revenue_total: float = Field(..., description="Ingresos totales en moneda")
     average_order_value: float = Field(..., description="Valor promedio por orden")
-    sla_compliance: float = Field(..., ge=0.0, le=1.0, description="Cumplimiento SLA (entregas + pagos exitosos)")
-    stock_reservation_rate: float = Field(..., ge=0.0, le=1.0, description="Tasa de órdenes con stock reservado")
+    sla_compliance: float = Field(..., ge=0.0, le=1.0, description="Cumplimiento SLA: fracción de órdenes entregadas dentro de 48 h (ver SLA_DELIVERY_HOURS)")
+    stock_reservation_rate: float = Field(..., ge=0.0, le=1.0, description="Tasa de Ã³rdenes con stock reservado")
     fulfillment_rate: float = Field(..., ge=0.0, le=1.0, description="Fulfillment completo (pago + entrega)")
 
     class Config:
@@ -39,7 +39,7 @@ class KPISResponse(BaseModel):
 
 
 class ChannelMetric(BaseModel):
-    """Métrica para un canal de venta."""
+    """MÃ©trica para un canal de venta."""
     channel: str
     order_count: int
     revenue: float
@@ -47,7 +47,7 @@ class ChannelMetric(BaseModel):
 
 
 class ChannelsResponse(BaseModel):
-    """Response para distribución de órdenes por canal."""
+    """Response para distribuciÃ³n de Ã³rdenes por canal."""
     total_orders: int
     channels: List[ChannelMetric]
 
@@ -80,14 +80,14 @@ class ChannelsResponse(BaseModel):
 
 
 class StatusMetric(BaseModel):
-    """Métrica para un estado de orden."""
+    """MÃ©trica para un estado de orden."""
     status: str
     count: int
     percentage_of_total: float
 
 
 class StatusResponse(BaseModel):
-    """Response para distribución de órdenes por estado."""
+    """Response para distribuciÃ³n de Ã³rdenes por estado."""
     total_orders: int
     statuses: List[StatusMetric]
 
@@ -117,7 +117,7 @@ class StatusResponse(BaseModel):
 
 
 class TimelinePoint(BaseModel):
-    """Punto en una línea de tiempo."""
+    """Punto en una lÃ­nea de tiempo."""
     date: str = Field(..., description="Fecha en formato YYYY-MM-DD")
     order_count: int
     delivered_count: int = 0
@@ -127,7 +127,7 @@ class TimelinePoint(BaseModel):
 
 
 class TimelineResponse(BaseModel):
-    """Response para órdenes agrupadas por fecha."""
+    """Response para Ã³rdenes agrupadas por fecha."""
     start_date: str
     end_date: str
     total_orders: int

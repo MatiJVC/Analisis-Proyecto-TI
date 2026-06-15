@@ -1,11 +1,37 @@
 // API Service - Using mock data for now, ready to connect to real endpoints
 import * as mockData from "./mock-data";
 import { getAccessToken } from "@/lib/keycloak";
+import type {
+  NotificationChannelsResponse,
+  NotificationStatusResponse,
+  NotificationTimelineResponse,
+  PaymentTimeline,
+  ServiceStatus,
+  Activity,
+  Alert,
+  StockStatusSummary,
+  WarehouseCapacity,
+} from "@/types/analytics";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(
   /\/+$/,
   "",
 );
+
+if (!API_BASE_URL) {
+  if (process.env.NODE_ENV === "development") {
+    console.warn(
+      "[api] NEXT_PUBLIC_API_URL is not set — all requests will return mock data. " +
+        "Set NEXT_PUBLIC_API_URL in .env.local to connect to the real backend.",
+    );
+  } else {
+    throw new Error(
+      "[api] NEXT_PUBLIC_API_URL is not set. " +
+        "Configure it in your deployment environment (see .env.local.example). " +
+        "Without it, all dashboard data is served from static mock values.",
+    );
+  }
+}
 
 export class ApiError extends Error {
   constructor(
@@ -15,6 +41,12 @@ export class ApiError extends Error {
     super(`[api] ${status} ${path}`);
     this.name = "ApiError";
   }
+}
+
+// Several endpoints wrap their array payload in { data: T[] } in production but
+// the mock returns a bare array. This helper unwraps both shapes without `any`.
+function unwrapData<T>(d: { data: T[] } | T[]): T[] {
+  return Array.isArray(d) ? d : d.data;
 }
 
 // When API_BASE_URL is not set, returns fallback (offline / local dev without backend).
@@ -39,10 +71,12 @@ async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
 
   const response = await fetch(`${API_BASE_URL}${path}`, { headers });
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      console.info(`[api] ${response.status} ${path} (sin permiso)`);
-    } else {
-      console.error(`[api] Error ${response.status} en ${path}`);
+    if (process.env.NODE_ENV !== 'production') {
+      if (response.status === 401 || response.status === 403) {
+        console.info(`[api] ${response.status} ${path} (sin permiso)`);
+      } else {
+        console.error(`[api] Error ${response.status} en ${path}`);
+      }
     }
     throw new ApiError(response.status, path);
   }
@@ -86,22 +120,25 @@ export const notificationsAPI = {
     ),
 
   getChannels: (days: number = 30) =>
-    fetchAPI(
+    fetchAPI<NotificationChannelsResponse>(
       `/kpis/notifications/channels?days=${days}`,
-      mockData.notificationChannels,
-    ).then((data: any) => data?.channels ?? data),
+      {
+        total_notifications: mockData.notificationChannels.length,
+        channels: mockData.notificationChannels,
+      },
+    ).then((data) => data.channels),
 
   getStatus: (days: number = 30) =>
-    fetchAPI(
+    fetchAPI<NotificationStatusResponse>(
       `/kpis/notifications/status?days=${days}`,
       mockData.notificationStatus,
-    ).then((data: any) => data?.statuses ?? data),
+    ).then((data) => data.statuses),
 
   getTimeline: (days: number = 30) =>
-    fetchAPI(
+    fetchAPI<NotificationTimelineResponse>(
       `/kpis/notifications/timeline?days=${days}`,
       mockData.notificationTimeline,
-    ).then((data: any) => data?.timeline ?? data),
+    ).then((data) => data.timeline),
 };
 
 // IoT API
@@ -133,7 +170,10 @@ export const incidentsAPI = {
 export const paymentsAPI = {
   getKPIs: () => fetchAPI("/analytics/payments/kpis", mockData.paymentKPIs),
   getTimeline: () =>
-    fetchAPI("/analytics/payments/timeline", mockData.paymentTimeline),
+    fetchAPI<{ data: PaymentTimeline[] } | PaymentTimeline[]>(
+      "/analytics/payments/timeline",
+      mockData.paymentTimeline,
+    ).then(unwrapData),
   getFailures: (hours = 24, topN = 10) =>
     fetchAPI(
       `/analytics/payments/failures?hours=${hours}&top_n=${topN}`,
@@ -150,11 +190,20 @@ export const paymentsAPI = {
 export const overviewAPI = {
   getGlobalKPIs: () => fetchAPI("/kpis/overview/kpis", mockData.globalKPIs),
   getServiceStatuses: () =>
-    fetchAPI("/kpis/overview/services", mockData.serviceStatuses),
+    fetchAPI<{ data: ServiceStatus[] } | ServiceStatus[]>(
+      "/kpis/overview/services",
+      mockData.serviceStatuses,
+    ).then(unwrapData),
   getRecentActivities: () =>
-    fetchAPI("/kpis/overview/activities?limit=10", mockData.recentActivities),
+    fetchAPI<{ data: Activity[] } | Activity[]>(
+      "/kpis/overview/activities?limit=10",
+      mockData.recentActivities,
+    ).then(unwrapData),
   getCriticalAlerts: () =>
-    fetchAPI("/kpis/overview/alerts?limit=10", mockData.criticalAlerts),
+    fetchAPI<{ data: Alert[] } | Alert[]>(
+      "/kpis/overview/alerts?limit=10",
+      mockData.criticalAlerts,
+    ).then(unwrapData),
 };
 
 // CRM API
@@ -170,21 +219,23 @@ export const crmAPI = {
 export const inventoryAPI = {
   getKPIs: () => fetchAPI("/inventory/kpis", mockData.inventoryKPIs),
   getStockStatus: () =>
-    fetchAPI("/inventory/stock-status", mockData.stockStatusSummary).then(
-      (data: any) => data?.data ?? data,
-    ),
+    fetchAPI<{ data: StockStatusSummary[] } | StockStatusSummary[]>(
+      "/inventory/stock-status",
+      mockData.stockStatusSummary,
+    ).then(unwrapData),
   getWarehouseCapacity: () =>
-    fetchAPI("/inventory/snapshot", mockData.warehouseCapacity).then(
-      (data: any) => data?.data ?? data,
-    ),
+    fetchAPI<{ data: WarehouseCapacity[] } | WarehouseCapacity[]>(
+      "/inventory/snapshot",
+      mockData.warehouseCapacity,
+    ).then(unwrapData),
   getLowStockItems: () =>
     fetchAPI(
       "/inventory/products/thresholds?below_threshold=true",
       mockData.lowStockItems,
     ),
-  getLocationsCatalog: (locationType?: string) =>
+  getLocationsCatalog: () =>
     fetchAPI(
-      `/inventory/locations/catalog${locationType ? `?location_type=${locationType}` : ""}`,
+      "/inventory/locations/catalog",
       mockData.locationsCatalog,
     ),
   getProductsThresholds: (belowThreshold?: boolean) =>

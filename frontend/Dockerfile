@@ -9,7 +9,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Variables de build (Next.js las embebe en tiempo de compilación)
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000/v1
 ARG NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
 ARG NEXT_PUBLIC_KEYCLOAK_REALM=sistema-centralizado
 ARG NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=proyecto-analisis-ti

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import uuid as _uuid
 from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
@@ -11,11 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import KeycloakUser, get_current_user, get_current_user_optional
 from app.api.rate_limit import require_rate_limit, RATE_LIMIT_TABLE_DDL
-from app.api.routes.events import ETL_QUEUE, _run_etl, retry_stale_events
-from app.db import engine, Base
-from app.redis_client import redis_client
-# Importaciones de modelos para que SQLAlchemy los registre en Base.metadata antes
-# de llamar a create_all. El orden importa: raw primero, luego warehouse, luego pagos.
+from app.api.routes.events import ETL_RETRY_DDL, _run_etl, purge_stale_raw_events, retry_stale_events
+from app.pagos.services.sla_service import run_sla_alert_check
+from app.services.monitoring_service import run_payment_alert_check
+from app.db import engine
+# Importaciones de modelos para que SQLAlchemy los registre en su mapper.
+# El orden importa: raw primero, luego warehouse, luego pagos.
 from app.models.raw import RawEvent  # noqa: F401
 from app.models.warehouse import (  # noqa: F401
     FactSubscription,
@@ -48,17 +48,12 @@ from app.pagos.models import (  # noqa: F401
 )
 from app.api import events_router, inventory_router, kpis_router, analytics_router
 
-_ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-if _ENVIRONMENT == "development":
-    # En producción/staging, el schema se gestiona con: alembic upgrade head
-    Base.metadata.create_all(bind=engine)
 
-
-def _setup_pg_rate_limit_table() -> None:
-    """Crea la tabla api_rate_limit si no existe (idempotente)."""
+def _run_ddl(ddl: str) -> None:
+    """Ejecuta un bloque DDL idempotente separado por ';'. Usado en lifespan."""
     from sqlalchemy import text
     with engine.connect() as conn:
-        for stmt in RATE_LIMIT_TABLE_DDL.strip().split(";"):
+        for stmt in ddl.strip().split(";"):
             stmt = stmt.strip()
             if stmt:
                 conn.execute(text(stmt))
@@ -67,7 +62,8 @@ def _setup_pg_rate_limit_table() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    await asyncio.to_thread(_setup_pg_rate_limit_table)
+    await asyncio.to_thread(_run_ddl, RATE_LIMIT_TABLE_DDL)
+    await asyncio.to_thread(_run_ddl, ETL_RETRY_DDL)
 
     async def _periodic_retry():
         while True:
@@ -78,40 +74,64 @@ async def lifespan(_app: FastAPI):
                 logger.exception("_periodic_retry: error en retry_stale_events")
 
     async def _cleanup_rate_limit_table():
-        """Borra ventanas antiguas de api_rate_limit cada 10 minutos."""
+        """Borra ventanas antiguas de api_rate_limit cada 2 minutos."""
         from sqlalchemy import text
+        _WARN_THRESHOLD = 10_000
         while True:
-            await asyncio.sleep(600)
+            await asyncio.sleep(120)
             try:
                 with engine.connect() as conn:
                     conn.execute(text(
                         "DELETE FROM api_rate_limit "
-                        "WHERE window_start < NOW() - INTERVAL '10 minutes'"
+                        "WHERE window_start < NOW() - INTERVAL '2 minutes'"
                     ))
+                    row_count = conn.execute(text("SELECT COUNT(*) FROM api_rate_limit")).scalar()
                     conn.commit()
+                    if row_count > _WARN_THRESHOLD:
+                        logger.warning(
+                            "_cleanup_rate_limit_table: %d filas tras limpieza "
+                            "(umbral %d) — posible fuga o tráfico inusualmente alto",
+                            row_count, _WARN_THRESHOLD,
+                        )
             except Exception:
                 logger.exception("_cleanup_rate_limit_table: error en limpieza")
 
-    async def _etl_consumer():
+    async def _periodic_sla_check():
+        """Evalúa SLA de pagos cada 5 minutos y crea alertas si el uptime cae."""
         while True:
+            await asyncio.sleep(300)
             try:
-                item = await asyncio.to_thread(redis_client.blpop, ETL_QUEUE, 10)
-                if item:
-                    _, value = item
-                    event_id_str, source = value.split("|", 1)
-                    await asyncio.to_thread(_run_etl, _uuid.UUID(event_id_str), source)
-            except asyncio.CancelledError:
-                break
+                await asyncio.to_thread(run_sla_alert_check)
             except Exception:
-                await asyncio.sleep(1)
+                logger.exception("_periodic_sla_check: error inesperado")
+
+    async def _periodic_payment_uptime_check():
+        """Detecta anomalías de uptime de pagos cada 5 minutos y crea alertas."""
+        while True:
+            await asyncio.sleep(300)
+            try:
+                await asyncio.to_thread(run_payment_alert_check)
+            except Exception:
+                logger.exception("_periodic_payment_uptime_check: error inesperado")
+
+    async def _periodic_purge_raw_events():
+        """Elimina eventos terminales de fact_raw_events una vez al día."""
+        while True:
+            await asyncio.sleep(24 * 3600)
+            try:
+                await asyncio.to_thread(purge_stale_raw_events)
+            except Exception:
+                logger.exception("_periodic_purge_raw_events: error inesperado")
 
     retry_task = asyncio.create_task(_periodic_retry())
     cleanup_task = asyncio.create_task(_cleanup_rate_limit_table())
-    consumer_task = asyncio.create_task(_etl_consumer()) if redis_client is not None else None
+    sla_task = asyncio.create_task(_periodic_sla_check())
+    payment_uptime_task = asyncio.create_task(_periodic_payment_uptime_check())
+    purge_task = asyncio.create_task(_periodic_purge_raw_events())
 
     yield
 
-    for task in filter(None, [retry_task, cleanup_task, consumer_task]):
+    for task in [retry_task, cleanup_task, sla_task, payment_uptime_task, purge_task]:
         task.cancel()
         try:
             await task
@@ -119,11 +139,16 @@ async def lifespan(_app: FastAPI):
             pass
 
 
+_is_dev = os.getenv("ENVIRONMENT", "production").lower() == "development"
+
 app = FastAPI(
     title="Event Ingestion & Analytics API",
     description="Sistema de ingestión de eventos y análisis de KPIs para múltiples dominios (subscriptions, orders, iot, notifications)",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs"        if _is_dev else None,
+    redoc_url="/redoc"      if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
 )
 
 # Orígenes permitidos (frontend Next.js). Configurable por env para producción.

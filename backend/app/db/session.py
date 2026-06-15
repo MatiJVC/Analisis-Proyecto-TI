@@ -1,4 +1,5 @@
 import os
+from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from dotenv import find_dotenv, load_dotenv
@@ -32,10 +33,12 @@ SessionLocal = sessionmaker(
 )
 
 
-def get_db() -> Session:  # ty:ignore[invalid-return-type]
+def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
-        db.rollback()  # no-op después de commit; descarta cambios sin commit en caso de excepción
         db.close()
