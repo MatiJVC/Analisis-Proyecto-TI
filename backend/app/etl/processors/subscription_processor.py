@@ -40,7 +40,7 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
     try:
         _validate_payload(raw_event.payload)
 
-        contract_id = raw_event.payload.get("contract_id")
+        contract_id = str(raw_event.payload.get("contract_id"))
         user_id = raw_event.payload.get("user_id")
         plan_id = raw_event.payload.get("plan_id")
 

@@ -47,8 +47,8 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
         _validate_order_payload(raw_event.payload)
         
         # 2. Extraer datos del payload
-        order_id = raw_event.payload.get("order_id")
-        customer_id = raw_event.payload.get("customer_id")
+        order_id = str(raw_event.payload.get("order_id"))
+        customer_id = str(raw_event.payload.get("customer_id"))
         sales_channel = raw_event.payload.get("sales_channel", "unknown")
         total_amount = raw_event.payload.get("total_amount", 0.0)
         total_items = raw_event.payload.get("total_items", 0)
