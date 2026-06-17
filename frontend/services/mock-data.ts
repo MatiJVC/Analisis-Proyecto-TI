@@ -33,6 +33,7 @@ import type {
   ProductsThresholdsResponse,
   PaymentFailuresResponse,
   PaymentConciliationResponse,
+  PaymentMethodsResponse,
   CRMKPIs,
   CRMTimeline,
   CRMTicketsResponse,
@@ -373,6 +374,16 @@ export const paymentConciliation: PaymentConciliationResponse = {
   ],
   total:         45892,
   approval_rate: 97.66,
+}
+
+export const paymentMethods: PaymentMethodsResponse = {
+  methods: [
+    { name: "Tarjeta de Crédito", value: 48.5, count: 21720 },
+    { name: "Tarjeta de Débito",  value: 27.3, count: 12228 },
+    { name: "Transferencia",      value: 14.2, count: 6361  },
+    { name: "Billetera Digital",  value: 10.0, count: 4482  },
+  ],
+  total: 44791,
 }
 
 // Logistics Mock Data

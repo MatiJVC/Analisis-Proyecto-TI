@@ -26,6 +26,8 @@ os.environ.setdefault(
 )
 os.environ.setdefault("SQL_ECHO", "False")
 os.environ.setdefault("DISABLE_AUTH", "true")
+# Raise rate-limit ceiling high enough that no test suite can hit it
+os.environ.setdefault("RATE_LIMIT", "100000")
 
 _TEST_PG_URL = os.environ.get("TEST_DATABASE_URL")
 

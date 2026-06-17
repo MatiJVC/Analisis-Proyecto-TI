@@ -15,6 +15,7 @@ class FactPagos(Base):
     subscription_id = Column(String(255), nullable=True, index=True)
     monto = Column(Numeric(18, 2), nullable=False)
     token_transaccion = Column(String(255), nullable=False, index=True)
+    payment_method = Column(String(100), nullable=True, index=True)
     error_code_id = Column(Integer, ForeignKey("dim_error_codes.id"), nullable=True, index=True)
     timestamp_evento = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     estado_conciliacion_id = Column(Integer, ForeignKey("dim_estados_conciliacion.id"), nullable=False, index=True)

@@ -29,37 +29,39 @@ _KPI_DATA = {
 }
 
 _SNAPSHOT_ROW = {
-    "inventory_id": "inv-001",
     "sku_id": "SKU-001",
-    "product_name": "Producto A",
-    "category": "Cat A",
     "location_id": "loc-001",
+    "location_code": "BOD-001",
     "location_name": "Bodega Central",
     "location_type": "WAREHOUSE",
     "city": "Santiago",
+    "country": "Chile",
     "physical_stock": 100,
     "reserved_stock": 10,
     "available_stock": 90,
     "critical_threshold": 20,
     "stock_status": "NORMAL",
-    "last_updated": "2026-06-11T00:00:00Z",
+    "last_movement_at": None,
+    "updated_at": "2026-06-11T00:00:00Z",
 }
 
 _LOCATION_ROW = {
     "location_id": "loc-001",
+    "location_code": "BOD-001",
     "location_name": "Bodega Central",
     "location_type": "WAREHOUSE",
     "address": "Av. Principal 123",
     "city": "Santiago",
     "country": "Chile",
     "is_active": True,
-    "capacity_m2": None,
+    "created_at": "2026-06-11T00:00:00Z",
 }
 
 _THRESHOLD_ROW = {
     "sku_id": "SKU-001",
     "product_name": "Producto A",
     "category": "Cat A",
+    "unit": "unidad",
     "critical_threshold": 20,
     "total_physical_stock": 15,
     "total_reserved_stock": 0,

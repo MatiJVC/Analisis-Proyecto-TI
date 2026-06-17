@@ -61,6 +61,7 @@ def process_payment_event(db: Session, raw_event) -> FactPagos:
     order_id = payload.get("order_id")
     subscription_id = payload.get("subscription_id")
     error_code = _normalize_error_code(payload.get("error_code"))
+    payment_method = payload.get("payment_method") or None
 
     status_name = _resolve_status_name(raw_event.event_type, error_code)
     estado = get_or_create_estado(db, status_name)
@@ -80,6 +81,7 @@ def process_payment_event(db: Session, raw_event) -> FactPagos:
         subscription_id=str(subscription_id) if subscription_id is not None else None,
         monto=amount,
         token_transaccion=str(transaction_token),
+        payment_method=payment_method,
         error_code_id=get_error_code_id(db, error_code),
         timestamp_evento=timestamp,
         estado_conciliacion_id=estado.id,

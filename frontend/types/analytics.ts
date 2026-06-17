@@ -276,6 +276,17 @@ export interface PaymentTimeline {
   amount: number
 }
 
+export interface PaymentMethodPoint {
+  name: string
+  value: number
+  count: number
+}
+
+export interface PaymentMethodsResponse {
+  methods: PaymentMethodPoint[]
+  total: number
+}
+
 // Logistics
 export interface LogisticsKPIs {
   activeRoutes: number

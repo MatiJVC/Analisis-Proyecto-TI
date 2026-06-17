@@ -8,6 +8,7 @@ import {
   usePaymentTimeline,
   usePaymentFailures,
   usePaymentConciliation,
+  usePaymentMethods,
 } from "@/hooks/use-analytics";
 import {
   CreditCard,
@@ -33,7 +34,7 @@ import {
   BarChart,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PaymentTimeline, PaymentFailure, ConciliationStatus } from "@/types/analytics";
+import type { PaymentTimeline, PaymentFailure, ConciliationStatus, PaymentMethodPoint } from "@/types/analytics";
 
 const COLORS = [
   "var(--chart-1)",
@@ -41,13 +42,6 @@ const COLORS = [
   "var(--chart-3)",
   "var(--chart-4)",
   "var(--chart-5)",
-];
-
-const paymentMethods = [
-  { name: "Tarjeta de Crédito", value: 48.5 },
-  { name: "Tarjeta de Débito", value: 27.3 },
-  { name: "Transferencia", value: 14.2 },
-  { name: "Billetera Digital", value: 10.0 },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -69,12 +63,14 @@ export default function PaymentsPage() {
   const { data: timeline,      isLoading: timelineLoading }      = usePaymentTimeline();
   const { data: failures,      isLoading: failuresLoading }      = usePaymentFailures();
   const { data: conciliation,  isLoading: conciliationLoading }  = usePaymentConciliation();
+  const { data: methodsData,   isLoading: methodsLoading }       = usePaymentMethods();
 
   const timelineData    = (timeline as PaymentTimeline[] | undefined) ?? [];
   const failureReasons  = (failures?.reasons ?? []) as PaymentFailure[];
   const concilStatuses  = (conciliation?.statuses ?? []) as ConciliationStatus[];
   const concilTotal     = conciliation?.total ?? 0;
   const approvalRate    = conciliation?.approval_rate ?? 0;
+  const paymentMethods  = (methodsData?.methods ?? []) as PaymentMethodPoint[];
 
   return (
     <DashboardLayout>
@@ -222,40 +218,44 @@ export default function PaymentsPage() {
         {/* Bottom row: 3 cards */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Payment Methods */}
-          <ChartCard
-            title="Métodos de pago"
-            description="Distribución por tipo de instrumento"
-          >
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={paymentMethods}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={95}
-                    paddingAngle={2}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {paymentMethods.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                    }}
-                    formatter={(value: number) => [`${value}%`, "Participación"]}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
+          {methodsLoading ? (
+            <ChartCardSkeleton />
+          ) : (
+            <ChartCard
+              title="Métodos de pago"
+              description="Distribución por tipo de instrumento"
+            >
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={paymentMethods}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={95}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      {paymentMethods.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "var(--popover)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                      }}
+                      formatter={(value: number) => [`${value}%`, "Participación"]}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
+          )}
 
           {/* Failure Reasons */}
           {failuresLoading ? (

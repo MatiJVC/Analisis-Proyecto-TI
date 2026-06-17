@@ -65,6 +65,17 @@ _SLA_DATA = {
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+_METHODS_DATA = {
+    "methods": [
+        {"name": "Tarjeta de Crédito", "value": 48.5, "count": 21820},
+        {"name": "Tarjeta de Débito",  "value": 27.3, "count": 12288},
+        {"name": "Transferencia",      "value": 14.2, "count": 6394},
+        {"name": "Billetera Digital",  "value": 10.0, "count": 4500},
+    ],
+    "total": 45002,
+}
+
+
 def _patch_all(monkeypatch):
     """Silencia todos los servicios de pagos para evitar llamadas reales."""
     monkeypatch.setattr("app.pagos.routes.analytics.get_payment_kpis",    lambda db, hours: _KPI_DATA)
@@ -72,6 +83,7 @@ def _patch_all(monkeypatch):
     monkeypatch.setattr("app.pagos.routes.analytics.get_failure_reasons",  lambda db, hours, top_n: _FAILURES_DATA)
     monkeypatch.setattr("app.pagos.routes.analytics.get_conciliation_summary", lambda db, hours: _CONCILIATION_DATA)
     monkeypatch.setattr("app.pagos.routes.analytics.get_sla_status",       lambda db, hours: _SLA_DATA)
+    monkeypatch.setattr("app.pagos.routes.analytics.get_payment_methods",  lambda db, hours: _METHODS_DATA)
 
 
 # ─── GET /v1/analytics/payments/kpis ─────────────────────────────────────────
@@ -247,6 +259,83 @@ class TestPaymentConciliation:
             lambda db, hours: (_ for _ in ()).throw(ValueError("schema error")),
         )
         assert client.get("/v1/analytics/payments/conciliation").status_code == 500
+
+
+# ─── GET /v1/analytics/payments/methods ─────────────────────────────────────
+
+class TestPaymentMethods:
+
+    def test_returns_200(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_payment_methods",
+            lambda db, hours: _METHODS_DATA,
+        )
+        assert client.get("/v1/analytics/payments/methods").status_code == 200
+
+    def test_response_has_methods_list_and_total(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_payment_methods",
+            lambda db, hours: _METHODS_DATA,
+        )
+        body = client.get("/v1/analytics/payments/methods").json()
+        assert "methods" in body
+        assert "total" in body
+        assert isinstance(body["methods"], list)
+        assert len(body["methods"]) == 4
+
+    def test_each_method_has_name_value_count(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_payment_methods",
+            lambda db, hours: _METHODS_DATA,
+        )
+        methods = client.get("/v1/analytics/payments/methods").json()["methods"]
+        for m in methods:
+            assert "name" in m, "Missing field: name"
+            assert "value" in m, "Missing field: value"
+            assert "count" in m, "Missing field: count"
+
+    def test_default_hours_is_24(self, client: TestClient, monkeypatch):
+        received = {}
+        def _capture(db, hours):
+            received["hours"] = hours
+            return _METHODS_DATA
+        monkeypatch.setattr("app.pagos.routes.analytics.get_payment_methods", _capture)
+        client.get("/v1/analytics/payments/methods")
+        assert received["hours"] == 24
+
+    def test_custom_hours_passed_to_service(self, client: TestClient, monkeypatch):
+        received = {}
+        def _capture(db, hours):
+            received["hours"] = hours
+            return _METHODS_DATA
+        monkeypatch.setattr("app.pagos.routes.analytics.get_payment_methods", _capture)
+        client.get("/v1/analytics/payments/methods?hours=72")
+        assert received["hours"] == 72
+
+    def test_hours_zero_returns_422(self, client: TestClient, monkeypatch):
+        _patch_all(monkeypatch)
+        assert client.get("/v1/analytics/payments/methods?hours=0").status_code == 422
+
+    def test_hours_over_max_returns_422(self, client: TestClient, monkeypatch):
+        _patch_all(monkeypatch)
+        assert client.get("/v1/analytics/payments/methods?hours=8761").status_code == 422
+
+    def test_empty_methods_returns_200(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_payment_methods",
+            lambda db, hours: {"methods": [], "total": 0},
+        )
+        response = client.get("/v1/analytics/payments/methods")
+        assert response.status_code == 200
+        assert response.json()["methods"] == []
+        assert response.json()["total"] == 0
+
+    def test_service_error_returns_500(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_payment_methods",
+            lambda db, hours: (_ for _ in ()).throw(RuntimeError("DB down")),
+        )
+        assert client.get("/v1/analytics/payments/methods").status_code == 500
 
 
 # ─── GET /v1/analytics/payments/sla ──────────────────────────────────────────

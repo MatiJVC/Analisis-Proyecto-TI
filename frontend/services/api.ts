@@ -144,6 +144,11 @@ export const paymentsAPI = {
       `/v1/analytics/payments/conciliation?hours=${hours}`,
       mockData.paymentConciliation,
     ),
+  getMethods: (hours = 24) =>
+    fetchAPI(
+      `/analytics/payments/methods?hours=${hours}`,
+      mockData.paymentMethods,
+    ),
 };
 
 // Overview API

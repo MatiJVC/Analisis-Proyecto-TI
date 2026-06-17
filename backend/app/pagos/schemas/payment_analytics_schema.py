@@ -83,6 +83,27 @@ class PaymentConciliationResponse(BaseModel):
     }}}
 
 
+class PaymentMethodPoint(BaseModel):
+    name: str   = Field(..., description="Nombre legible del método de pago")
+    value: float = Field(..., description="Porcentaje de transacciones aprobadas con este método")
+    count: int   = Field(..., description="Transacciones aprobadas con este método en la ventana")
+
+    model_config = {"json_schema_extra": {"example": {"name": "Tarjeta de Crédito", "value": 48.5, "count": 21820}}}
+
+
+class PaymentMethodsResponse(BaseModel):
+    methods: list[PaymentMethodPoint] = Field(..., description="Distribución por método de pago (solo transacciones Aprobado)")
+    total: int                        = Field(..., description="Total de transacciones aprobadas en la ventana")
+
+    model_config = {"json_schema_extra": {"example": {
+        "methods": [
+            {"name": "Tarjeta de Crédito", "value": 48.5, "count": 21820},
+            {"name": "Tarjeta de Débito",  "value": 27.3, "count": 12288},
+        ],
+        "total": 45000,
+    }}}
+
+
 class SlaActiveEvent(BaseModel):
     id: int
     tipo: str = Field(..., description="'downtime' | 'degraded'")

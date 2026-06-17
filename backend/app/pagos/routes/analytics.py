@@ -9,10 +9,11 @@ from app.pagos.schemas.payment_analytics_schema import (
     PaymentConciliationResponse,
     PaymentFailuresResponse,
     PaymentKPIsResponse,
+    PaymentMethodsResponse,
     PaymentTimelinePoint,
     SlaStatusResponse,
 )
-from app.pagos.analytics.payment_metrics import get_conciliation_summary, get_failure_reasons
+from app.pagos.analytics.payment_metrics import get_conciliation_summary, get_failure_reasons, get_payment_methods
 from app.pagos.services.payment_analytics_service import get_payment_kpis, get_payment_timeline
 from app.pagos.services.sla_service import get_sla_status
 
@@ -124,6 +125,30 @@ async def get_payments_conciliation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error calculando estado de conciliación",
+        )
+
+
+@router.get(
+    "/payments/methods",
+    response_model=PaymentMethodsResponse,
+    summary="Distribución de pagos por método de pago",
+    description=(
+        "Agrupa fact_pagos por payment_method (solo transacciones Aprobado) y retorna "
+        "conteos y porcentajes para la ventana indicada. "
+        "Solo incluye filas con payment_method no nulo."
+    ),
+)
+async def get_payments_methods(
+    hours: int = Query(default=24, ge=1, le=8760, description="Ventana en horas (1–8760)"),
+    db: Session = Depends(get_db),
+) -> PaymentMethodsResponse:
+    try:
+        data = get_payment_methods(db, hours=hours)
+        return PaymentMethodsResponse(**data)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error calculando distribución de métodos de pago",
         )
 
 
