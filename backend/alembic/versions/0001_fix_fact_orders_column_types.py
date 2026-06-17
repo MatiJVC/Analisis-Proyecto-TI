@@ -14,9 +14,15 @@ depends_on = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+    has_fact_payments = "fact_payments" in tables
+
     # fact_payments tiene FK sobre fact_orders.order_id; hay que quitarla antes
     # de cambiar el tipo y volver a crearla después.
-    op.drop_constraint("fact_payments_order_id_fkey", "fact_payments", type_="foreignkey")
+    if has_fact_payments:
+        op.drop_constraint("fact_payments_order_id_fkey", "fact_payments", type_="foreignkey")
 
     op.alter_column(
         "fact_orders",
@@ -44,34 +50,41 @@ def upgrade() -> None:
     )
 
     # Actualizar fact_payments.order_id al mismo tipo para mantener la FK
-    op.alter_column(
-        "fact_payments",
-        "order_id",
-        type_=sa.String(100),
-        existing_type=sa.Integer(),
-        existing_nullable=True,
-        postgresql_using="order_id::varchar(100)",
-    )
-    op.create_foreign_key(
-        "fact_payments_order_id_fkey",
-        "fact_payments",
-        "fact_orders",
-        ["order_id"],
-        ["order_id"],
-    )
+    if has_fact_payments:
+        op.alter_column(
+            "fact_payments",
+            "order_id",
+            type_=sa.String(100),
+            existing_type=sa.Integer(),
+            existing_nullable=True,
+            postgresql_using="order_id::varchar(100)",
+        )
+        op.create_foreign_key(
+            "fact_payments_order_id_fkey",
+            "fact_payments",
+            "fact_orders",
+            ["order_id"],
+            ["order_id"],
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint("fact_payments_order_id_fkey", "fact_payments", type_="foreignkey")
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+    has_fact_payments = "fact_payments" in tables
 
-    op.alter_column(
-        "fact_payments",
-        "order_id",
-        type_=sa.Integer(),
-        existing_type=sa.String(100),
-        existing_nullable=True,
-        postgresql_using="order_id::integer",
-    )
+    if has_fact_payments:
+        op.drop_constraint("fact_payments_order_id_fkey", "fact_payments", type_="foreignkey")
+
+        op.alter_column(
+            "fact_payments",
+            "order_id",
+            type_=sa.Integer(),
+            existing_type=sa.String(100),
+            existing_nullable=True,
+            postgresql_using="order_id::integer",
+        )
     op.alter_column(
         "fact_orders",
         "total_amount",
@@ -96,10 +109,11 @@ def downgrade() -> None:
         existing_nullable=False,
         postgresql_using="order_id::integer",
     )
-    op.create_foreign_key(
-        "fact_payments_order_id_fkey",
-        "fact_payments",
-        "fact_orders",
-        ["order_id"],
-        ["order_id"],
-    )
+    if has_fact_payments:
+        op.create_foreign_key(
+            "fact_payments_order_id_fkey",
+            "fact_payments",
+            "fact_orders",
+            ["order_id"],
+            ["order_id"],
+        )

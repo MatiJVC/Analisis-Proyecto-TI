@@ -178,7 +178,7 @@ def process_iot_event(db: Session, raw_event: RawEvent) -> Optional[FactIoT]:
         raise
 
     except Exception as e:
-        logger.exception("IoT-ETL error procesando evento %s", raw_event.id)
+        logger.exception("IoT-ETL error procesando evento %s", raw_event.event_id)
         raise
 
 
@@ -221,7 +221,7 @@ def process_iot_events(db: Session, limit: int = 1000) -> Dict[str, Any]:
                 
             except Exception as e:
                 stats["errors"] += 1
-                logger.exception("IoT-ETL error procesando evento %s", raw_event.id)
+                logger.exception("IoT-ETL error procesando evento %s", raw_event.event_id)
                 db.rollback()
 
         # 3. Commit de todos los cambios

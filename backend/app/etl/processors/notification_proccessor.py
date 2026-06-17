@@ -142,7 +142,7 @@ def process_notification_event(
         raise
 
     except Exception as e:
-        logger.exception("Notifications-ETL error procesando evento %s", raw_event.id)
+        logger.exception("Notifications-ETL error procesando evento %s", raw_event.event_id)
         raise
 
 
@@ -187,7 +187,7 @@ def process_notification_events(db: Session, limit: int = 1000) -> Dict[str, Any
 
             except Exception as e:
                 stats["errors"] += 1
-                logger.exception("Notifications-ETL error procesando evento %s", raw_event.id)
+                logger.exception("Notifications-ETL error procesando evento %s", raw_event.event_id)
                 db.rollback()
 
         db.commit()

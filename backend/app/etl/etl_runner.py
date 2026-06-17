@@ -53,15 +53,15 @@ def _process_source_pipeline(
         except validation_errors as e:
             db.rollback()
             stats["failed"] += 1
-            stats["errors"].append(f"Event {raw_event.id} [{source}]: {str(e)}")
+            stats["errors"].append(f"Event {raw_event.event_id} [{source}]: {str(e)}")
         except SQLAlchemyError as e:
             db.rollback()
             stats["failed"] += 1
-            stats["errors"].append(f"Event {raw_event.id} [{source}]: BD error - {str(e)}")
+            stats["errors"].append(f"Event {raw_event.event_id} [{source}]: BD error - {str(e)}")
         except Exception as e:
             db.rollback()
             stats["failed"] += 1
-            stats["errors"].append(f"Event {raw_event.id} [{source}]: {str(e)}")
+            stats["errors"].append(f"Event {raw_event.event_id} [{source}]: {str(e)}")
 
     if dry_run:
         db.rollback()

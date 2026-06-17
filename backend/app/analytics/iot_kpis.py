@@ -281,7 +281,7 @@ def get_sensors_by_type(db: Session, days: Optional[int] = None) -> List[Dict[st
 def get_iot_events(db: Session, days: Optional[int] = None, limit: int = 100) -> List[Dict[str, any]]:
     """Obtiene eventos de IoT recientes desde raw_events."""
     query = db.query(
-        RawEvent.id,
+        RawEvent.event_id,
         RawEvent.source,
         RawEvent.event_type,
         RawEvent.ingested_at,
@@ -388,7 +388,7 @@ def process_unprocessed_iot_events(db: Session, limit: int = 1000) -> Dict[str, 
                 
             except Exception as e:
                 stats["errors"] += 1
-                logger.exception("IoT-KPI error procesando evento %s", raw_event.id)
+                logger.exception("IoT-KPI error procesando evento %s", raw_event.event_id)
                 db.rollback()
 
         db.commit()

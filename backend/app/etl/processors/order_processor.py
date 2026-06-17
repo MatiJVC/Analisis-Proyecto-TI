@@ -133,5 +133,5 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
         raise
 
     except Exception as e:
-        logger.exception("ORDER-ETL error procesando evento %s", raw_event.id)
+        logger.exception("ORDER-ETL error procesando evento %s", raw_event.event_id)
         raise
