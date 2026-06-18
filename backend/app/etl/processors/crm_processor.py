@@ -15,6 +15,16 @@ class CRMProcessingError(Exception):
     pass
 
 
+# Transiciones válidas: event_type → estados de origen permitidos
+# Solo los eventos que cambian estado de un ticket existente están aquí.
+_VALID_TRANSITIONS: Dict[str, tuple] = {
+    "ticket.asignado": ("Abierto",),
+    "ticket.escalado": ("Progreso",),
+    "ticket.resuelto": ("Progreso",),
+    "ticket.cerrado":  ("Resuelto",),
+}
+
+
 def _parse_dt(value: Any) -> Optional[datetime]:
     if value is None:
         return None
@@ -26,6 +36,30 @@ def _parse_dt(value: Any) -> Optional[datetime]:
         except ValueError:
             return None
     return None
+
+
+def _require_ticket(db: Session, ticket_id: str) -> FactTicket:
+    """Obtiene un ticket existente o lanza CRMProcessingError si no existe."""
+    ticket = db.query(FactTicket).filter(FactTicket.ticket_id == ticket_id).first()
+    if not ticket:
+        raise CRMProcessingError(
+            f"Ticket '{ticket_id}' no encontrado — "
+            "debe procesarse ticket.creado antes de modificar su estado"
+        )
+    return ticket
+
+
+def _validate_transition(ticket: FactTicket, event_type: str) -> None:
+    """Valida que el estado actual del ticket permita la transición del evento."""
+    allowed = _VALID_TRANSITIONS.get(event_type)
+    if allowed is None:
+        return
+    if ticket.estado not in allowed:
+        raise CRMProcessingError(
+            f"Transición inválida para '{event_type}': "
+            f"ticket '{ticket.ticket_id}' está en '{ticket.estado}' "
+            f"pero se requiere {list(allowed)}"
+        )
 
 
 def _get_or_create_ticket(db: Session, ticket_id: str, payload: Dict[str, Any]) -> FactTicket:
@@ -92,8 +126,9 @@ def _handle_ticket_asignado(db: Session, payload: Dict[str, Any]) -> FactTicket:
     ticket_id = payload.get("ticket_id")
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
-    ticket = _get_or_create_ticket(db, ticket_id, payload)
-    ticket.estado = payload.get("estado", ticket.estado)
+    ticket = _require_ticket(db, ticket_id)
+    _validate_transition(ticket, "ticket.asignado")
+    ticket.estado = "Progreso"
     ticket.agente_id = payload.get("agente_id", ticket.agente_id)
     ticket.updated_at = datetime.now(tz=timezone.utc)
     db.add(ticket)
@@ -105,10 +140,10 @@ def _handle_ticket_escalado(db: Session, payload: Dict[str, Any]) -> FactTicket:
     ticket_id = payload.get("ticket_id")
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
-    ticket = _get_or_create_ticket(db, ticket_id, payload)
+    ticket = _require_ticket(db, ticket_id)
+    _validate_transition(ticket, "ticket.escalado")
     if payload.get("prioridad_al_escalar"):
         ticket.prioridad = payload["prioridad_al_escalar"]
-    ticket.estado = payload.get("estado", ticket.estado)
     ticket.updated_at = datetime.now(tz=timezone.utc)
     db.add(ticket)
     db.flush()
@@ -119,7 +154,8 @@ def _handle_ticket_resuelto(db: Session, payload: Dict[str, Any]) -> FactTicket:
     ticket_id = payload.get("ticket_id")
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
-    ticket = _get_or_create_ticket(db, ticket_id, payload)
+    ticket = _require_ticket(db, ticket_id)
+    _validate_transition(ticket, "ticket.resuelto")
     ticket.estado = "Resuelto"
     ticket.resolved_at = _parse_dt(payload.get("resolved_at")) or datetime.now(tz=timezone.utc)
     if payload.get("resolution_time_hours") is not None:
@@ -140,7 +176,8 @@ def _handle_ticket_cerrado(db: Session, payload: Dict[str, Any]) -> FactTicket:
     ticket_id = payload.get("ticket_id")
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
-    ticket = _get_or_create_ticket(db, ticket_id, payload)
+    ticket = _require_ticket(db, ticket_id)
+    _validate_transition(ticket, "ticket.cerrado")
     ticket.estado = "Cerrado"
     ticket.closed_at = _parse_dt(payload.get("closed_at")) or datetime.now(tz=timezone.utc)
     if payload.get("csat_score") is not None:
