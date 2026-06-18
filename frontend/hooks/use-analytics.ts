@@ -117,6 +117,10 @@ export function usePaymentConciliation(hours = 24) {
   return useSWR(`payments-conciliation-${hours}`, () => paymentsAPI.getConciliation(hours), swrConfig)
 }
 
+export function usePaymentMethods(hours = 24) {
+  return useSWR(`payments-methods-${hours}`, () => paymentsAPI.getMethods(hours), swrConfig)
+}
+
 // Overview hooks
 export function useGlobalKPIs() {
   return useSWR('overview-kpis', overviewAPI.getGlobalKPIs, swrConfig)

@@ -5,6 +5,7 @@ import { KPICard, KPICardSkeleton } from '@/components/dashboard/kpi-card'
 import { ChartCard, ChartCardSkeleton } from '@/components/dashboard/chart-card'
 import { StatusBadge } from '@/components/dashboard/status-badge'
 import { useCRMKPIs, useCRMTimeline, useCRMTickets, useCRMSLA } from '@/hooks/use-analytics'
+import { ApiError } from '@/services/api'
 import {
   Users,
   Headphones,
@@ -14,6 +15,7 @@ import {
   TrendingUp,
   ShieldAlert,
   ShieldCheck,
+  AlertCircle,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -41,6 +43,25 @@ const STATE_LABEL: Record<string, string> = {
   escalado:    'warning',
 }
 
+function apiErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.status === 403)
+      return 'Sin permiso para acceder a este módulo'
+    if (error.status >= 500)
+      return 'Error del servidor — intente nuevamente'
+  }
+  return 'Error al cargar los datos'
+}
+
+function SectionError({ error }: { error: unknown }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-destructive">
+      <AlertCircle className="h-5 w-5 shrink-0" />
+      <span className="text-sm font-medium">{apiErrorMessage(error)}</span>
+    </div>
+  )
+}
+
 function formatMinutes(minutes: number): string {
   if (minutes < 60) return `${Math.round(minutes)}min`
   const h = Math.floor(minutes / 60)
@@ -57,10 +78,10 @@ function timeAgo(iso: string): string {
 }
 
 export default function CRMPage() {
-  const { data: kpis,     isLoading: kpisLoading }     = useCRMKPIs()
-  const { data: timeline, isLoading: timelineLoading } = useCRMTimeline(14)
-  const { data: tickets,  isLoading: ticketsLoading }  = useCRMTickets()
-  const { data: sla,      isLoading: slaLoading }      = useCRMSLA()
+  const { data: kpis,     isLoading: kpisLoading,     error: kpisError }     = useCRMKPIs()
+  const { data: timeline, isLoading: timelineLoading, error: timelineError } = useCRMTimeline(14)
+  const { data: tickets,  isLoading: ticketsLoading,  error: ticketsError }  = useCRMTickets()
+  const { data: sla,      isLoading: slaLoading,      error: slaError }      = useCRMSLA()
 
   const chartPoints = timeline?.points ?? []
 
@@ -78,6 +99,8 @@ export default function CRMPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {kpisLoading ? (
             Array.from({ length: 6 }).map((_, i) => <KPICardSkeleton key={i} />)
+          ) : kpisError ? (
+            <div className="col-span-full"><SectionError error={kpisError} /></div>
           ) : (
             <>
               <KPICard
@@ -118,6 +141,8 @@ export default function CRMPage() {
         {/* Timeline Chart */}
         {timelineLoading ? (
           <ChartCardSkeleton />
+        ) : timelineError ? (
+          <SectionError error={timelineError} />
         ) : (
           <ChartCard title="Volumen de Tickets" description="Tickets abiertos vs resueltos — últimos 14 días">
             <div className="h-[300px]">
@@ -178,6 +203,8 @@ export default function CRMPage() {
           {/* Recent Tickets */}
           {ticketsLoading ? (
             <ChartCardSkeleton className="lg:col-span-2" />
+          ) : ticketsError ? (
+            <div className="lg:col-span-2"><SectionError error={ticketsError} /></div>
           ) : (
             <Card className="bg-card border-border lg:col-span-2">
               <CardHeader>
@@ -219,6 +246,8 @@ export default function CRMPage() {
           {/* SLA Summary */}
           {slaLoading ? (
             <ChartCardSkeleton />
+          ) : slaError ? (
+            <SectionError error={slaError} />
           ) : (
             <Card className="bg-card border-border">
               <CardHeader>

@@ -138,13 +138,31 @@ class TestHandleTicketAsignado:
         existing_ticket.agente_id = None
 
         db = _make_db(query_result=existing_ticket)
-        payload = {"ticket_id": "T-003", "agente_id": "AGT-5", "estado": "En Progreso"}
+        payload = {"ticket_id": "T-003", "agente_id": "AGT-5"}
         raw = _make_raw_event("ticket.asignado", payload)
-        result = process_crm_event(db, raw)
+        process_crm_event(db, raw)
 
         assert existing_ticket.agente_id == "AGT-5"
-        assert existing_ticket.estado == "En Progreso"
+        assert existing_ticket.estado == "Progreso"
         assert db.flush.called
+
+    def test_asignado_rechaza_si_ya_en_progreso(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Progreso"
+        existing_ticket.ticket_id = "T-003"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.asignado", {"ticket_id": "T-003"})
+        with pytest.raises(CRMProcessingError, match="Transición inválida"):
+            process_crm_event(db, raw)
+
+    def test_asignado_rechaza_ticket_inexistente(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        db = _make_db(query_result=None)
+        raw = _make_raw_event("ticket.asignado", {"ticket_id": "NO-EXISTE"})
+        with pytest.raises(CRMProcessingError, match="no encontrado"):
+            process_crm_event(db, raw)
 
 
 # ─── ticket.escalado ─────────────────────────────────────────────────────────
@@ -154,7 +172,7 @@ class TestHandleTicketEscalado:
         from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
         existing_ticket.prioridad = "Media"
-        existing_ticket.estado = "Abierto"
+        existing_ticket.estado = "Progreso"
 
         db = _make_db(query_result=existing_ticket)
         payload = {"ticket_id": "T-004", "prioridad_al_escalar": "Crítica"}
@@ -162,6 +180,24 @@ class TestHandleTicketEscalado:
         process_crm_event(db, raw)
 
         assert existing_ticket.prioridad == "Crítica"
+
+    def test_escalado_rechaza_si_abierto(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Abierto"
+        existing_ticket.ticket_id = "T-004"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.escalado", {"ticket_id": "T-004"})
+        with pytest.raises(CRMProcessingError, match="Transición inválida"):
+            process_crm_event(db, raw)
+
+    def test_escalado_rechaza_ticket_inexistente(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        db = _make_db(query_result=None)
+        raw = _make_raw_event("ticket.escalado", {"ticket_id": "NO-EXISTE"})
+        with pytest.raises(CRMProcessingError, match="no encontrado"):
+            process_crm_event(db, raw)
 
     def test_missing_ticket_id_raises(self):
         from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
@@ -177,7 +213,7 @@ class TestHandleTicketResuelto:
     def test_sets_estado_resuelto(self):
         from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
-        existing_ticket.estado = "Abierto"
+        existing_ticket.estado = "Progreso"
         existing_ticket.within_sla = None
 
         db = _make_db(query_result=existing_ticket)
@@ -196,6 +232,7 @@ class TestHandleTicketResuelto:
     def test_resolved_at_set_when_provided(self):
         from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
+        existing_ticket.estado = "Progreso"
         db = _make_db(query_result=existing_ticket)
         payload = {
             "ticket_id": "T-005b",
@@ -205,6 +242,24 @@ class TestHandleTicketResuelto:
         process_crm_event(db, raw)
         assert existing_ticket.resolved_at is not None
 
+    def test_resuelto_rechaza_si_abierto(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Abierto"
+        existing_ticket.ticket_id = "T-005c"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.resuelto", {"ticket_id": "T-005c"})
+        with pytest.raises(CRMProcessingError, match="Transición inválida"):
+            process_crm_event(db, raw)
+
+    def test_resuelto_rechaza_ticket_inexistente(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        db = _make_db(query_result=None)
+        raw = _make_raw_event("ticket.resuelto", {"ticket_id": "NO-EXISTE"})
+        with pytest.raises(CRMProcessingError, match="no encontrado"):
+            process_crm_event(db, raw)
+
 
 # ─── ticket.cerrado ──────────────────────────────────────────────────────────
 
@@ -212,6 +267,7 @@ class TestHandleTicketCerrado:
     def test_sets_estado_cerrado_with_csat(self):
         from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
+        existing_ticket.estado = "Resuelto"
         db = _make_db(query_result=existing_ticket)
         payload = {"ticket_id": "T-006", "csat_score": 5}
         raw = _make_raw_event("ticket.cerrado", payload)
@@ -219,6 +275,24 @@ class TestHandleTicketCerrado:
 
         assert existing_ticket.estado == "Cerrado"
         assert existing_ticket.csat_score == 5
+
+    def test_cerrado_rechaza_si_en_progreso(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Progreso"
+        existing_ticket.ticket_id = "T-006b"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.cerrado", {"ticket_id": "T-006b"})
+        with pytest.raises(CRMProcessingError, match="Transición inválida"):
+            process_crm_event(db, raw)
+
+    def test_cerrado_rechaza_ticket_inexistente(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        db = _make_db(query_result=None)
+        raw = _make_raw_event("ticket.cerrado", {"ticket_id": "NO-EXISTE"})
+        with pytest.raises(CRMProcessingError, match="no encontrado"):
+            process_crm_event(db, raw)
 
     def test_missing_ticket_id_raises(self):
         from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError

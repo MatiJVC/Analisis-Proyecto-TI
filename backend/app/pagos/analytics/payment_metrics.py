@@ -218,6 +218,52 @@ def get_failure_reasons(db: Session, hours: int = 24, top_n: int = 10) -> Dict[s
     }
 
 
+_METHOD_LABELS: Dict[str, str] = {
+    "tarjeta_credito":   "Tarjeta de Crédito",
+    "tarjeta_debito":    "Tarjeta de Débito",
+    "transferencia":     "Transferencia",
+    "billetera_digital": "Billetera Digital",
+}
+
+
+def get_payment_methods(db: Session, hours: int = 24) -> Dict[str, Any]:
+    """Distribución de transacciones aprobadas por método de pago.
+
+    Ventana rodante de `hours` horas. Solo cuenta transacciones Aprobado con
+    payment_method no nulo. Devuelve methods (con name, value%, count) y total.
+    """
+    start = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+
+    rows = (
+        db.query(
+            FactPagos.payment_method.label("method"),
+            func.count(FactPagos.transaction_id).label("cnt"),
+        )
+        .join(DimEstadosConciliacion, FactPagos.estado_conciliacion_id == DimEstadosConciliacion.id)
+        .filter(
+            DimEstadosConciliacion.nombre == "Aprobado",
+            FactPagos.timestamp_evento >= start,
+            FactPagos.payment_method.isnot(None),
+        )
+        .group_by(FactPagos.payment_method)
+        .order_by(func.count(FactPagos.transaction_id).desc())
+        .all()
+    )
+
+    total = sum(int(r.cnt) for r in rows)
+
+    methods = [
+        {
+            "name":  _METHOD_LABELS.get(r.method, r.method),
+            "count": int(r.cnt),
+            "value": round(float(r.cnt) / float(total) * 100.0, 1) if total else 0.0,
+        }
+        for r in rows
+    ]
+
+    return {"methods": methods, "total": total}
+
+
 def get_conciliation_summary(db: Session, hours: int = 24) -> Dict[str, Any]:
     """Distribución de transacciones por estado de conciliación.
 
