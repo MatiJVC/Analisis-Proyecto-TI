@@ -43,7 +43,7 @@ def _get_or_create_incident(db: Session, incident_id: str, payload: Dict[str, An
     if existing:
         return existing
 
-    opened_at = _parse_datetime(payload.get("opened_at")) or datetime.now(tz=timezone.utc).replace(tzinfo=None)
+    opened_at = _parse_datetime(payload.get("opened_at")) or datetime.now(tz=timezone.utc)
     return FactIncident(
         incident_id=incident_id,
         title=payload.get("title") or f"Incident {incident_id}",
@@ -109,7 +109,7 @@ def _handle_incident_resolved(db: Session, raw_event: RawEvent) -> FactIncident:
     _apply_common_fields(fact, payload)
 
     fact.status = "resolved"
-    resolved_at = _parse_datetime(payload.get("resolved_at")) or datetime.now(tz=timezone.utc).replace(tzinfo=None)
+    resolved_at = _parse_datetime(payload.get("resolved_at")) or datetime.now(tz=timezone.utc)
     fact.resolved_at = resolved_at
 
     if payload.get("resolution_time_hours") is not None:
