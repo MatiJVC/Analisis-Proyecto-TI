@@ -110,15 +110,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
         preferred_username?: string
         email?: string
         realm_access?: { roles?: string[] }
+        resource_access?: Record<string, { roles?: string[] }>
       }
     | undefined
+
+ 
+  const realmRoles = tokenParsed?.realm_access?.roles ?? []
+  const clientRoles = Object.values(tokenParsed?.resource_access ?? {}).flatMap(
+    (client) => client?.roles ?? [],
+  )
+  const allRoles = Array.from(new Set([...realmRoles, ...clientRoles]))
 
   const value: AuthContextValue = {
     keycloak,
     authenticated,
     username: tokenParsed?.preferred_username ?? null,
     email: tokenParsed?.email ?? null,
-    roles: tokenParsed?.realm_access?.roles ?? [],
+    roles: allRoles,
     logout: () =>
       keycloak.logout({ redirectUri: window.location.origin }),
   }

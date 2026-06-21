@@ -20,7 +20,7 @@ from app.pagos.services.sla_service import get_sla_status
 router = APIRouter(
     prefix="/analytics",
     tags=["analytics"],
-    dependencies=[Depends(require_any_role(["admin", "analista"]))],
+    dependencies=[Depends(require_any_role(["admin", "analista", "payments"]))],
     responses={
         401: {"description": "Falta token Bearer o token inválido"},
         403: {"description": "El usuario no tiene rol suficiente"},

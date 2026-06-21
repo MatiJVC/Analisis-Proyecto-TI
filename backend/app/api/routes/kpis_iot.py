@@ -28,7 +28,7 @@ from app.services.iot_analytics_service import (
 
 logger = logging.getLogger(__name__)
 
-IOT_ROLES = ["admin", "analista"]
+IOT_ROLES = ["admin", "analista", "iot"]
 
 router = APIRouter(tags=["kpis — iot"])
 

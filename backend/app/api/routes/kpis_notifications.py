@@ -24,7 +24,7 @@ from app.analytics.notifications_kpis import (
 
 logger = logging.getLogger(__name__)
 
-NOTIFICATIONS_ROLES = ["admin", "analista"]
+NOTIFICATIONS_ROLES = ["admin", "analista", "notifications"]
 
 router = APIRouter(tags=["kpis — notifications"])
 

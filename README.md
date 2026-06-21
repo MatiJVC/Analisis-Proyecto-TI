@@ -2,16 +2,40 @@
 
 ## Servicios necesarios
 
-| Servicio   | Origen                                                                 | Puerto |
-| ---------- | ---------------------------------------------------------------------- | ------ |
-| Postgres   | `docker-compose.yml` (este repo)                                       | 5434   |
-| Backend    | FastAPI (`backend/`)                                                   | 8000   |
-| Frontend   | Next.js (`Frontend/`)                                                  | 3000   |
-| Keycloak   | Repo del equipo de identidad: `git@gitlab.com:bloppaa/sistema-identidad.git` | 8080   |
+| Servicio   | Origen                                                                 | URL / Puerto |
+| ---------- | ---------------------------------------------------------------------- | ------------ |
+| Postgres   | `docker-compose.yml` (este repo)                                       | localhost:5434 |
+| Backend    | FastAPI (`backend/`)                                                   | localhost:8000 |
+| Frontend   | Next.js (`Frontend/`)                                                  | localhost:3000 |
+| Keycloak   | Externo (grupo de identidad), expuesto vía **ngrok** en prod           | https://underarm-those-stardust.ngrok-free.dev |
 
-## 0) Levantar Keycloak (otro repo)
+## 0) Sistema de identidad (Keycloak)
 
-En una carpeta **fuera** de este proyecto:
+**Por defecto el proyecto apunta al Keycloak del grupo 1 que ya está en
+producción** (URL en la tabla de arriba). No necesitas levantar nada local
+para autenticarte. Los `.env` ya vienen apuntados ahí.
+
+Datos del realm/cliente que el grupo de identidad ya configuró:
+
+| Campo                 | Valor                                                  |
+| --------------------- | ------------------------------------------------------ |
+| Realm                 | `sistema-centralizado`                                 |
+| Client ID             | `p9`                                                   |
+| Client authentication | **Off** (cliente público con PKCE)                     |
+| Standard flow         | ✓                                                      |
+| Direct access grants  | ✓                                                      |
+| Valid redirect URIs   | `http://localhost:3000/*`                              |
+| Web origins           | `http://localhost:3000`                                |
+
+Si alguno de esos campos no está bien configurado, el login redirige y
+queda colgado. En ese caso, escribir al grupo 1 para que lo arregle desde
+la consola admin de Keycloak.
+
+### Modo local (opcional, para desarrollo offline)
+
+Si quieres correr todo sin depender de ngrok (por ejemplo, sin internet
+o cuando hay rate-limit), clona el repo del Keycloak local en una
+carpeta fuera de este proyecto:
 
 ```bash
 git clone git@gitlab.com:bloppaa/sistema-identidad.git
@@ -19,24 +43,27 @@ cd sistema-identidad
 docker compose up -d
 ```
 
-Consola admin: <http://localhost:8080> (admin / admin).
+Consola admin local: <http://localhost:8080> (admin / admin).
 
-Pedir al equipo de identidad que registre nuestro cliente en el realm
-`sistema-centralizado` con:
+Y crea un `Frontend/.env.local` (gitignored) con los valores locales:
 
-| Campo                 | Valor                          |
-| --------------------- | ------------------------------ |
-| Client ID             | `proyecto-analisis-ti`         |
-| Client authentication | **Off** (cliente público)      |
-| Standard flow         | ✓                              |
-| Direct access grants  | ✓                              |
-| Valid redirect URIs   | `http://localhost:3000/*`      |
-| Web origins           | `http://localhost:3000`        |
+```
+NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=proyecto-analisis-ti
+```
 
-Si cambia el Client ID, hay que actualizar:
+Y un `backend/.env.local` con:
 
-- `Frontend/.env` → `NEXT_PUBLIC_KEYCLOAK_CLIENT_ID`
-- (no afecta al backend, que solo valida tokens del realm)
+```
+KEYCLOAK_URL=http://localhost:8080
+```
+
+Después corre el script idempotente para crear roles/usuarios/cliente
+en el realm local:
+
+```powershell
+.\scripts\bootstrap-keycloak.ps1
+```
 
 ## 1) Levantar Postgres
 
@@ -114,45 +141,48 @@ Mantener en sync con `backend/app/api/routes/kpis.py` (constantes
 Sin token o con rol incorrecto, el backend responde `401` o `403`.
 El frontend filtra el sidebar y bloquea las páginas con `<RoleGate>`.
 
-### Bootstrap del realm (importante)
+### Usuarios de prueba
 
-El container Keycloak del equipo de identidad arranca con
-`start-dev --import-realm` y **sin volumen persistente**: cada reinicio
-del container deja el realm con su configuración inicial y se pierden
-los roles/usuarios/clients hechos por consola admin.
+#### Prod (ngrok del grupo 1) — default
 
-Para recuperar el estado funcional en cualquier momento, basta correr
-el script idempotente que está en este repo:
+El grupo de identidad creó usuarios bajo el patrón `p9-<rol>@ucn.cl` para
+nuestro proyecto. Confirmado al menos:
+
+| Email                       | Password    | Rol asignado    |
+| --------------------------- | ----------- | --------------- |
+| `p9-subscriptions@ucn.cl`   | `Subs123!`  | `subscriptions` |
+
+Si necesitas usuarios para otros roles (admin, salud, orders, incidents,
+etc.), pídeselos al grupo 1.
+
+#### Modo local (opcional)
+
+Si estás corriendo el Keycloak local con `.env.local`, hay un script
+idempotente que crea los 11 roles, 11 usuarios de prueba y el cliente
+`proyecto-analisis-ti` desde cero (útil porque ese container no
+persiste datos):
 
 ```powershell
 .\scripts\bootstrap-keycloak.ps1
-```
-
-Crea/actualiza:
-
-- Los **6 roles** (`admin`, `analista`, `salud`, `subscriptions`, `orders`, `incidents`).
-- Los **6 usuarios de prueba** con sus contraseñas y roles asignados.
-- El **client público** `proyecto-analisis-ti` con `redirectUris=http://localhost:3000/*` y `webOrigins=http://localhost:3000`.
-
-Si el container del equipo de identidad cambia de URL/puerto, pasarlo:
-
-```powershell
+# Si Keycloak corre en otra URL:
 .\scripts\bootstrap-keycloak.ps1 -KeycloakUrl http://otra-url:8080
 ```
 
-### Usuarios de prueba (entorno local)
+Usuarios que crea (todos con email `<usuario>@ucn.cl`):
 
-Estos usuarios los crea/actualiza el script de bootstrap. **Solo para
-desarrollo local** — no usar en producción.
-
-| Usuario        | Email                  | Password       | Roles asignados |
-| -------------- | ---------------------- | -------------- | --------------- |
-| `admingrupo9`  | admin@ucn.cl           | `admin`        | `admin`         |
-| `analista`     | analista@ucn.cl        | `Analista123!` | `analista`      |
-| `salud`        | salud@ucn.cl           | `Salud123!`    | `salud`         |
-| `subscriptions`| subscriptions@ucn.cl   | `Subs123!`     | `subscriptions` |
-| `orders`       | orders@ucn.cl          | `Orders123!`   | `orders`        |
-| `incidents`    | incidents@ucn.cl       | `Inc123!`      | `incidents`     |
+| Usuario          | Password       | Rol             |
+| ---------------- | -------------- | --------------- |
+| `admingrupo9`    | `admin`        | `admin`         |
+| `analista`       | `Analista123!` | `analista`      |
+| `salud`          | `Salud123!`    | `salud`         |
+| `subscriptions`  | `Subs123!`     | `subscriptions` |
+| `orders`         | `Orders123!`   | `orders`        |
+| `incidents`      | `Inc123!`      | `incidents`     |
+| `iot`            | `Iot123!`      | `iot`           |
+| `notificaciones` | `Notif123!`    | `notifications` |
+| `pagos`          | `Pagos123!`    | `payments`      |
+| `inventario`     | `Inv123!`      | `inventory`     |
+| `crm`            | `Crm123!`      | `crm`           |
 
 Al hacer login en <http://localhost:3000>, cada usuario ve solo los menús
 y dashboards que le corresponden.
@@ -184,21 +214,34 @@ manda el token, pero no se discrimina por rol al ingestar eventos).
 
 ## Variables de entorno
 
-`Frontend/.env`:
+`Frontend/.env` (apunta a Keycloak prod por defecto):
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+NEXT_PUBLIC_KEYCLOAK_URL=https://underarm-those-stardust.ngrok-free.dev
 NEXT_PUBLIC_KEYCLOAK_REALM=sistema-centralizado
-NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=proyecto-analisis-ti
+NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=p9
 ```
 
-`backend/.env`:
+`backend/.env` (apunta a Keycloak prod por defecto):
 
 ```
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5434/proyecto_ti
-KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_URL=https://underarm-those-stardust.ngrok-free.dev
 KEYCLOAK_REALM=sistema-centralizado
 KEYCLOAK_AUDIENCE=account
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
+
+Para volver a un Keycloak local, sobreescribe estas variables en
+`Frontend/.env.local` y `backend/.env.local` (ver sección [Modo local](#modo-local-opcional-para-desarrollo-offline)).
+
+## Troubleshooting de Keycloak
+
+| Síntoma | Causa probable | Solución |
+| --- | --- | --- |
+| Login redirige y queda colgado en una página de error | Faltan `redirect URIs` o `web origins` en el cliente `p9` | Pedir al grupo 1 que agregue `http://localhost:3000/*` y `http://localhost:3000` |
+| El token llega al backend pero responde `401 Invalid audience` | El cliente `p9` no incluye `account` en el `aud` del token | En `backend/.env` cambiar `KEYCLOAK_AUDIENCE=p9` y reiniciar el backend |
+| El frontend recibe un HTML con "Visit Site" en vez del login | El intersticial de ngrok-free está activo | Pedir al grupo 1 que desactive el banner en su configuración de ngrok |
+| Errores `429 Too Many Requests` o login esporádico | Rate limit de ngrok-free (~120 req/min) | Esperar 1 minuto, o cambiar a modo local si la cuota se mantiene saturada |
+| `FATAL: KEYCLOAK_URL usa HTTP ... en entorno 'production'` al arrancar el backend | El check de seguridad rechaza HTTP fuera de development | Asegurarse de que `KEYCLOAK_URL` empiece con `https://` o setear `ENVIRONMENT=development` |

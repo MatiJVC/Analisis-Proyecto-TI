@@ -46,7 +46,7 @@ from app.services.inventory_query_service import (
 router = APIRouter(
     prefix="/inventory",
     tags=["inventory — consulta analítica"],
-    dependencies=[Depends(require_any_role(["admin", "analista"]))],
+    dependencies=[Depends(require_any_role(["admin", "analista", "inventory"]))],
     responses={
         400: {"description": "Parámetro de consulta inválido"},
         401: {"description": "Falta token Bearer o token inválido"},

@@ -22,7 +22,7 @@ from app.services.crm_analytics_service import (
 
 logger = logging.getLogger(__name__)
 
-CRM_ROLES = ["admin", "analista"]
+CRM_ROLES = ["admin", "analista", "crm"]
 
 router = APIRouter(tags=["kpis — crm"])
 
