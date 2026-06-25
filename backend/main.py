@@ -43,7 +43,7 @@ from app.pagos.models import (  # noqa: F401
     FactPaymentsEvent,
     FactSlaEvent,
 )
-from app.api import events_router, inventory_router, kpis_router, analytics_router
+from app.api import events_router, inventory_router, kpis_router, analytics_router, auditoria_router
 
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 if _ENVIRONMENT == "development":
@@ -122,6 +122,7 @@ app.include_router(events_router, prefix="/v1")
 app.include_router(kpis_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
 app.include_router(inventory_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
 app.include_router(analytics_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
+app.include_router(auditoria_router, prefix="/v1", dependencies=[Depends(require_rate_limit)])
 
 
 @app.get("/", tags=["health"])

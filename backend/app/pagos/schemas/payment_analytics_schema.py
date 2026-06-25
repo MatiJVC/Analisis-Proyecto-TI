@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -138,3 +138,49 @@ class SlaStatusResponse(BaseModel):
         ],
         "alert_created": True,
     }}}
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+class KpiResumen(BaseModel):
+    volumenTransDiario: int = Field(..., description="Total de transacciones iniciadas en las últimas 24h")
+    crecimientoVolumen: float = Field(..., description="% de cambio respecto a las 24h anteriores")
+    tasaRechazo: float = Field(..., description="% de transacciones fallidas sobre el total")
+    uptimeSLA: float = Field(..., description="Uptime real del servicio en las últimas 24h (0–100)")
+
+
+class TransaccionDiaria(BaseModel):
+    hora: str = Field(..., description="Hora en formato HH:MM")
+    exitosas: int
+    rechazadas: int
+
+
+class VolumenPorMetodo(BaseModel):
+    metodo: str = Field(..., description="Nombre legible del método de pago")
+    volumenTrans: int = Field(..., description="Cantidad de transacciones aprobadas con este método")
+
+
+class DashboardResponse(BaseModel):
+    kpiResumen: KpiResumen
+    transaccionesDiarias: List[TransaccionDiaria]
+    volumenPorMetodo: List[VolumenPorMetodo]
+
+
+# ── Auditoría / Reportes ──────────────────────────────────────────────────────
+
+class ReporteHistorico(BaseModel):
+    id: str
+    fecha: str = Field(..., description="Fecha del cierre en formato YYYY-MM-DD")
+    tipo: str = Field(default="Cierre Diario")
+    estado: Literal["completo", "en_proceso", "fallido"]
+
+
+class DetalleReporteHisto(BaseModel):
+    id_reporte: str
+    fecha: str = Field(..., description="Fecha del cierre en formato YYYY-MM-DD")
+    kpiResumen: KpiResumen
+    volumenPorMetodo: List[VolumenPorMetodo]
+
+
+class GenerarReporteResponse(BaseModel):
+    success: bool

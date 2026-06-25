@@ -1,22 +1,28 @@
 "use client";
 
+import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { KPICard, KPICardSkeleton } from "@/components/dashboard/kpi-card";
 import { ChartCard, ChartCardSkeleton } from "@/components/dashboard/chart-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import {
-  usePaymentKPIs,
-  usePaymentTimeline,
-  usePaymentFailures,
-  usePaymentConciliation,
-  usePaymentMethods,
+  usePaymentDashboard,
+  useReportesHistoricos,
+  useDetalleReporte,
 } from "@/hooks/use-analytics";
 import {
-  CreditCard,
-  DollarSign,
-  AlertTriangle,
+  TrendingUp,
   TrendingDown,
-  Activity,
+  AlertTriangle,
   ShieldCheck,
+  CreditCard,
+  Plus,
+  Download,
 } from "lucide-react";
 import {
   ComposedChart,
@@ -27,330 +33,381 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
   BarChart,
+  Legend,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PaymentTimeline, PaymentFailure, ConciliationStatus, PaymentMethodPoint } from "@/types/analytics";
+import { auditoriaAPI } from "@/services/api";
+import { toast } from "sonner";
+import type { ReporteHistorico } from "@/types/analytics";
 
-const COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
-
-const STATUS_COLORS: Record<string, string> = {
-  "Aprobado":                        "var(--chart-1)",
-  "esperando_revisión":              "var(--chart-3)",
-  "discrepancia_de_monto":           "var(--chart-5)",
-  "discrepancia_de_transacciones":   "var(--chart-4)",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  "Aprobado":                        "Aprobado",
-  "esperando_revisión":              "Pendiente revisión",
-  "discrepancia_de_monto":           "Discrepancia monto",
-  "discrepancia_de_transacciones":   "Discrepancia transac.",
+const ESTADO_BADGE: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" }
+> = {
+  completo:   { label: "Completo",   variant: "default" },
+  en_proceso: { label: "En proceso", variant: "secondary" },
+  fallido:    { label: "Fallido",    variant: "destructive" },
 };
 
 export default function PaymentsPage() {
-  const { data: kpis,          isLoading: kpisLoading }          = usePaymentKPIs();
-  const { data: timeline,      isLoading: timelineLoading }      = usePaymentTimeline();
-  const { data: failures,      isLoading: failuresLoading }      = usePaymentFailures();
-  const { data: conciliation,  isLoading: conciliationLoading }  = usePaymentConciliation();
-  const { data: methodsData,   isLoading: methodsLoading }       = usePaymentMethods();
+  const { data: dashboard, isLoading: dashboardLoading } = usePaymentDashboard();
+  const { data: reportes, isLoading: reportesLoading, mutate: mutateReportes } = useReportesHistoricos();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [generando, setGenerando] = useState(false);
+  const { data: detalle, isLoading: detalleLoading } = useDetalleReporte(selectedId);
 
-  const timelineData    = (timeline as PaymentTimeline[] | undefined) ?? [];
-  const failureReasons  = (failures?.reasons ?? []) as PaymentFailure[];
-  const concilStatuses  = (conciliation?.statuses ?? []) as ConciliationStatus[];
-  const concilTotal     = conciliation?.total ?? 0;
-  const approvalRate    = conciliation?.approval_rate ?? 0;
-  const paymentMethods  = (methodsData?.methods ?? []) as PaymentMethodPoint[];
+  const kpis         = dashboard?.kpiResumen;
+  const transacciones = dashboard?.transaccionesDiarias ?? [];
+  const volumen       = dashboard?.volumenPorMetodo ?? [];
+  const crecimiento   = kpis?.crecimientoVolumen ?? 0;
+
+  async function handleGenerarReporte() {
+    setGenerando(true);
+    try {
+      await auditoriaAPI.generarReporte();
+      toast.success("Reporte diario generado correctamente");
+      mutateReportes();
+    } catch {
+      toast.error("Error al generar el reporte diario");
+    } finally {
+      setGenerando(false);
+    }
+  }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
+        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Módulo de Pagos
           </h1>
           <p className="text-muted-foreground">
-            Monitoreo de transacciones, conciliación y rendimiento del gateway de pagos
+            Monitoreo de transacciones, métricas diarias y reportes de auditoría
           </p>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {kpisLoading ? (
-            Array.from({ length: 6 }).map((_, i) => <KPICardSkeleton key={i} />)
-          ) : (
-            <>
-              <KPICard
-                title="Total de transacciones procesadas"
-                value={kpis?.totalTransactions ?? 0}
-                icon={<CreditCard className="h-5 w-5" />}
-              />
-              <KPICard
-                title="Pagos fallidos en el período"
-                value={kpis?.failedPayments ?? 0}
-                icon={<AlertTriangle className="h-5 w-5" />}
-              />
-              <KPICard
-                title="Tasa de fallos"
-                value={kpis?.failureRate ?? 0}
-                format="percentage"
-                icon={<TrendingDown className="h-5 w-5" />}
-              />
-              <KPICard
-                title="Ingresos procesados"
-                value={kpis?.revenue ?? 0}
-                format="currency"
-                icon={<DollarSign className="h-5 w-5" />}
-              />
-              <KPICard
-                title="Valor promedio por transacción"
-                value={kpis?.avgTransactionValue ?? 0}
-                format="currency"
-                icon={<Activity className="h-5 w-5" />}
-              />
-              <KPICard
-                title="Disponibilidad del gateway"
-                value={kpis?.uptime ?? 0}
-                format="percentage"
-                icon={<ShieldCheck className="h-5 w-5" />}
-              />
-            </>
-          )}
-        </div>
+        <Tabs defaultValue="analitica">
+          <TabsList>
+            <TabsTrigger value="analitica">Analítica</TabsTrigger>
+            <TabsTrigger value="auditoria">Auditoría</TabsTrigger>
+          </TabsList>
 
-        {/* Timeline Chart — full width */}
-        <div className="grid gap-6">
-          {timelineLoading ? (
-            <ChartCardSkeleton />
-          ) : (
-            <ChartCard
-              title="Actividad de transacciones — últimas 24 horas"
-              description="Volumen de pagos exitosos, fallidos y monto procesado por hora"
-            >
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={timelineData}>
-                    <defs>
-                      <linearGradient id="successGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="amountGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis
-                      dataKey="date"
-                      stroke="var(--muted-foreground)"
-                      fontSize={12}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      stroke="var(--muted-foreground)"
-                      fontSize={12}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      stroke="var(--muted-foreground)"
-                      fontSize={12}
-                      tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "8px",
-                      }}
-                      labelStyle={{ color: "var(--foreground)" }}
-                      formatter={(value: number, name: string) => {
-                        if (name === "Monto") return [`$${value.toLocaleString()}`, name];
-                        return [value.toLocaleString(), name];
-                      }}
-                    />
-                    <Legend />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="successful"
-                      stroke="var(--chart-1)"
-                      fill="url(#successGradient)"
-                      strokeWidth={2}
-                      name="Exitosos"
-                    />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="failed"
-                      fill="var(--chart-5)"
-                      radius={[2, 2, 0, 0]}
-                      name="Fallidos"
-                      opacity={0.8}
-                    />
-                    <Area
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="amount"
-                      stroke="var(--chart-2)"
-                      fill="url(#amountGradient)"
-                      strokeWidth={2}
-                      name="Monto"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </ChartCard>
-          )}
-        </div>
+          {/* ── Tab: Analítica ───────────────────────────────────────────── */}
+          <TabsContent value="analitica" className="space-y-6 pt-4">
+            {/* KPI Cards */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {dashboardLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <KPICardSkeleton key={i} />)
+              ) : (
+                <>
+                  <KPICard
+                    title="Volumen de transacciones"
+                    value={kpis?.volumenTransDiario ?? 0}
+                    icon={<CreditCard className="h-5 w-5" />}
+                  />
+                  <KPICard
+                    title="Crecimiento vs semana anterior"
+                    value={kpis?.crecimientoVolumen ?? 0}
+                    format="percentage"
+                    icon={
+                      crecimiento >= 0
+                        ? <TrendingUp className="h-5 w-5" />
+                        : <TrendingDown className="h-5 w-5" />
+                    }
+                  />
+                  <KPICard
+                    title="Tasa de rechazo"
+                    value={kpis?.tasaRechazo ?? 0}
+                    format="percentage"
+                    icon={<AlertTriangle className="h-5 w-5" />}
+                  />
+                  <KPICard
+                    title="Uptime SLA"
+                    value={kpis?.uptimeSLA ?? 0}
+                    format="percentage"
+                    icon={<ShieldCheck className="h-5 w-5" />}
+                  />
+                </>
+              )}
+            </div>
 
-        {/* Bottom row: 3 cards */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Payment Methods */}
-          {methodsLoading ? (
-            <ChartCardSkeleton />
-          ) : (
-            <ChartCard
-              title="Métodos de pago"
-              description="Distribución por tipo de instrumento"
-            >
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={paymentMethods}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={95}
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {paymentMethods.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "8px",
-                      }}
-                      formatter={(value: number) => [`${value}%`, "Participación"]}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </ChartCard>
-          )}
+            {/* Timeline */}
+            {dashboardLoading ? (
+              <ChartCardSkeleton />
+            ) : (
+              <ChartCard
+                title="Transacciones por hora — últimas 24h"
+                description="Volumen de transacciones exitosas y rechazadas hora a hora"
+              >
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={transacciones}>
+                      <defs>
+                        <linearGradient id="exitosasGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor="var(--chart-1)" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis
+                        dataKey="hora"
+                        stroke="var(--muted-foreground)"
+                        fontSize={12}
+                      />
+                      <YAxis stroke="var(--muted-foreground)" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "var(--popover)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "var(--foreground)" }}
+                      />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="exitosas"
+                        stroke="var(--chart-1)"
+                        fill="url(#exitosasGrad)"
+                        strokeWidth={2}
+                        name="Exitosas"
+                      />
+                      <Bar
+                        dataKey="rechazadas"
+                        fill="var(--chart-5)"
+                        radius={[2, 2, 0, 0]}
+                        name="Rechazadas"
+                        opacity={0.8}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </ChartCard>
+            )}
 
-          {/* Failure Reasons */}
-          {failuresLoading ? (
-            <ChartCardSkeleton />
-          ) : (
-            <ChartCard
-              title="Razones de fallo"
-              description={`Tasa de rechazo: ${failures?.rejection_rate?.toFixed(1) ?? 0}% — top causas`}
-            >
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={failureReasons} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis type="number" stroke="var(--muted-foreground)" fontSize={12} />
-                    <YAxis
-                      dataKey="reason"
-                      type="category"
-                      stroke="var(--muted-foreground)"
-                      fontSize={11}
-                      width={140}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "8px",
-                      }}
-                      labelStyle={{ color: "var(--foreground)" }}
-                      formatter={(v: number, _: string, entry: { payload?: PaymentFailure }) =>
-                        [`${v} (${entry?.payload?.percentage ?? 0}%)`, "Fallos"]
-                      }
-                    />
-                    <Bar dataKey="count" fill="var(--chart-5)" radius={[0, 4, 4, 0]} name="Fallos" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </ChartCard>
-          )}
+            {/* Volumen por método */}
+            {dashboardLoading ? (
+              <ChartCardSkeleton />
+            ) : (
+              <ChartCard
+                title="Volumen por método de pago"
+                description="Transacciones aprobadas agrupadas por instrumento de pago"
+              >
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={volumen}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis
+                        dataKey="metodo"
+                        stroke="var(--muted-foreground)"
+                        fontSize={12}
+                      />
+                      <YAxis stroke="var(--muted-foreground)" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "var(--popover)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "var(--foreground)" }}
+                      />
+                      <Bar
+                        dataKey="volumenTrans"
+                        fill="var(--chart-2)"
+                        radius={[4, 4, 0, 0]}
+                        name="Transacciones"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </ChartCard>
+            )}
+          </TabsContent>
 
-          {/* Conciliation Status */}
-          {conciliationLoading ? (
-            <ChartCardSkeleton />
-          ) : (
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold text-foreground">
-                  Estado de conciliación
-                </CardTitle>
+          {/* ── Tab: Auditoría ───────────────────────────────────────────── */}
+          <TabsContent value="auditoria" className="space-y-6 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Reportes de cierre diario
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Desglose del resultado de transacciones
+                  Historial de cierres generados con su estado de conciliación
                 </p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {concilStatuses.map((item) => (
-                    <div key={item.status} className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">
-                          {STATUS_LABELS[item.status] ?? item.status}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {item.count.toLocaleString("es-CL")} ({item.percentage}%)
-                        </span>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${item.percentage}%`,
-                            backgroundColor: STATUS_COLORS[item.status] ?? "var(--chart-3)",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+              </div>
+              <Button onClick={handleGenerarReporte} disabled={generando}>
+                <Plus className="h-4 w-4 mr-2" />
+                {generando ? "Generando..." : "Generar reporte"}
+              </Button>
+            </div>
 
-                  <div className="pt-4 border-t border-border space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tasa de aprobación</span>
-                      <span className="font-semibold text-foreground">
-                        {approvalRate.toFixed(2)}%
-                      </span>
+            {reportesLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-12 rounded bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(reportes ?? []).length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="text-center py-10 text-muted-foreground"
+                        >
+                          No hay reportes generados aún. Usa el botón para crear el primero.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      (reportes ?? []).map((r: ReporteHistorico) => {
+                        const badge =
+                          ESTADO_BADGE[r.estado] ?? {
+                            label: r.estado,
+                            variant: "secondary" as const,
+                          };
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              #{r.id}
+                            </TableCell>
+                            <TableCell>{r.fecha}</TableCell>
+                            <TableCell>{r.tipo}</TableCell>
+                            <TableCell>
+                              <Badge variant={badge.variant}>{badge.label}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedId(r.id)}
+                              >
+                                Ver detalle
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* ── Sheet: Detalle de reporte ────────────────────────────────────── */}
+        <Sheet
+          open={selectedId !== null}
+          onOpenChange={(open) => !open && setSelectedId(null)}
+        >
+          <SheetContent className="w-[480px] sm:w-[540px] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Reporte #{selectedId}</SheetTitle>
+            </SheetHeader>
+
+            {detalleLoading ? (
+              <div className="space-y-4 mt-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-10 rounded bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : detalle ? (
+              <div className="space-y-6 mt-6">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Fecha del cierre
+                  </p>
+                  <p className="text-lg font-semibold mt-1">{detalle.fecha}</p>
+                </div>
+
+                <Separator />
+
+                {/* KPIs */}
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-3">
+                    Métricas del día
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border p-4 space-y-1">
+                      <p className="text-xs text-muted-foreground">Volumen</p>
+                      <p className="text-2xl font-bold">
+                        {detalle.kpiResumen.volumenTransDiario.toLocaleString("es-CL")}
+                      </p>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Total procesado</span>
-                      <span className="font-semibold text-foreground">
-                        {concilTotal.toLocaleString("es-CL")}
-                      </span>
+                    <div className="rounded-lg border border-border p-4 space-y-1">
+                      <p className="text-xs text-muted-foreground">Crecimiento</p>
+                      <p className="text-2xl font-bold">
+                        {detalle.kpiResumen.crecimientoVolumen >= 0 ? "+" : ""}
+                        {detalle.kpiResumen.crecimientoVolumen.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border p-4 space-y-1">
+                      <p className="text-xs text-muted-foreground">Tasa de rechazo</p>
+                      <p className="text-2xl font-bold">
+                        {detalle.kpiResumen.tasaRechazo.toFixed(2)}%
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border p-4 space-y-1">
+                      <p className="text-xs text-muted-foreground">Uptime SLA</p>
+                      <p className="text-2xl font-bold">
+                        {detalle.kpiResumen.uptimeSLA.toFixed(2)}%
+                      </p>
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+
+                <Separator />
+
+                {/* Volumen por método */}
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-3">
+                    Volumen por método de pago
+                  </p>
+                  <div className="space-y-0 divide-y divide-border">
+                    {detalle.volumenPorMetodo.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-2">
+                        Sin datos para esta fecha
+                      </p>
+                    ) : (
+                      detalle.volumenPorMetodo.map((m) => (
+                        <div
+                          key={m.metodo}
+                          className="flex justify-between items-center py-3"
+                        >
+                          <span className="text-sm text-foreground">{m.metodo}</span>
+                          <span className="text-sm font-medium tabular-nums">
+                            {m.volumenTrans.toLocaleString("es-CL")}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => window.print()}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar PDF
+                </Button>
+              </div>
+            ) : null}
+          </SheetContent>
+        </Sheet>
       </div>
     </DashboardLayout>
   );

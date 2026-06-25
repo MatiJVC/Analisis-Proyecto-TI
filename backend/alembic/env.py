@@ -13,6 +13,7 @@ from app.models.warehouse import (  # noqa: F401
     FactVisitas, FactAlertas, FactFichasClinicas,
     FactTicket, DimClienteCRM, FactInteraccion, FactTicketArticulo,
     FactSlaViolacion, FactInventoryMovement, FactInventoryAlert,
+    DimProduct, DimLocation,
 )
 from app.models.warehouse.alerts import PriorityAlert  # noqa: F401
 from app.models.warehouse.fact_iot import FactIoT  # noqa: F401

@@ -460,3 +460,43 @@ export interface CRMSLASummary {
   criticalViolations: number
   slaComplianceRate: number
 }
+
+// ─── Pagos — Dashboard & Auditoría ───────────────────────────────────────────
+
+export interface KpiResumen {
+  volumenTransDiario: number
+  crecimientoVolumen: number
+  tasaRechazo: number
+  uptimeSLA: number
+}
+
+export interface TransaccionDiaria {
+  hora: string
+  exitosas: number
+  rechazadas: number
+}
+
+export interface VolumenPorMetodo {
+  metodo: string
+  volumenTrans: number
+}
+
+export interface DashboardMetricas {
+  kpiResumen: KpiResumen
+  transaccionesDiarias: TransaccionDiaria[]
+  volumenPorMetodo: VolumenPorMetodo[]
+}
+
+export interface ReporteHistorico {
+  id: string
+  fecha: string
+  tipo: string
+  estado: 'completo' | 'en_proceso' | 'fallido'
+}
+
+export interface DetalleReporteHisto {
+  id_reporte: string
+  fecha: string
+  kpiResumen: KpiResumen
+  volumenPorMetodo: VolumenPorMetodo[]
+}

@@ -91,6 +91,14 @@ def _upsert_cliente(db: Session, payload: Dict[str, Any]) -> Optional[DimCliente
         .filter(DimClienteCRM.cliente_identidad_id == identidad_id)
         .first()
     )
+    if not cliente and payload.get("email"):
+        cliente = (
+            db.query(DimClienteCRM)
+            .filter(DimClienteCRM.email == payload["email"])
+            .first()
+        )
+        if cliente:
+            cliente.cliente_identidad_id = identidad_id
     if cliente:
         if payload.get("email"):
             cliente.email = payload["email"]

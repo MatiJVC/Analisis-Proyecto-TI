@@ -1,6 +1,7 @@
 // API Service - Using mock data for now, ready to connect to real endpoints
 import * as mockData from "./mock-data";
 import { getAccessToken } from "@/lib/keycloak";
+import type { DashboardMetricas, ReporteHistorico, DetalleReporteHisto } from "@/types/analytics";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(
   /\/+$/,
@@ -146,9 +147,47 @@ export const paymentsAPI = {
     ),
   getMethods: (hours = 24) =>
     fetchAPI(
-      `/analytics/payments/methods?hours=${hours}`,
+      `/v1/analytics/payments/methods?hours=${hours}`,
       mockData.paymentMethods,
     ),
+};
+
+// Auditoría API
+async function postFetch<T>(endpoint: string): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error("API_BASE_URL no configurado");
+  }
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = await getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST", headers });
+  if (!response.ok) throw new ApiError(response.status, path);
+  return response.json();
+}
+
+const _mockDashboard: DashboardMetricas = {
+  kpiResumen: { volumenTransDiario: 0, crecimientoVolumen: 0, tasaRechazo: 0, uptimeSLA: 100 },
+  transaccionesDiarias: [],
+  volumenPorMetodo: [],
+};
+
+const _mockReportes: ReporteHistorico[] = [];
+
+export const auditoriaAPI = {
+  getDashboard: (): Promise<DashboardMetricas> =>
+    fetchAPI("/v1/analitica/dashboard", _mockDashboard),
+  getReportes: (): Promise<ReporteHistorico[]> =>
+    fetchAPI("/v1/auditoria/reportes", _mockReportes),
+  getDetalle: (id: string): Promise<DetalleReporteHisto> =>
+    fetchAPI(`/v1/auditoria/reportes/${id}`, {
+      id_reporte: id,
+      fecha: "",
+      kpiResumen: { volumenTransDiario: 0, crecimientoVolumen: 0, tasaRechazo: 0, uptimeSLA: 0 },
+      volumenPorMetodo: [],
+    } as DetalleReporteHisto),
+  generarReporte: (): Promise<{ success: boolean }> =>
+    postFetch("/v1/auditoria/reportes/generar"),
 };
 
 // Overview API

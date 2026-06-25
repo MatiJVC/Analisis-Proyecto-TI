@@ -8,6 +8,8 @@ from .fact_ticket_articulos import FactTicketArticulo
 from .fact_sla_violaciones import FactSlaViolacion
 from .fact_inventory_movements import FactInventoryMovement
 from .fact_inventory_alerts import FactInventoryAlert
+from .dim_products import DimProduct
+from .dim_locations import DimLocation
 from .fact_iot import FactIoT
 from .fact_notifications import FactNotifications
 
@@ -49,6 +51,8 @@ __all__ = [
     "FactSlaViolacion",
     "FactInventoryMovement",
     "FactInventoryAlert",
+    "DimProduct",
+    "DimLocation",
     "DimUsuarios",
     "DimProfesionales",
     "DimZonas",

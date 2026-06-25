@@ -11,6 +11,7 @@ import {
   overviewAPI,
   inventoryAPI,
   crmAPI,
+  auditoriaAPI,
 } from '@/services/api'
 import type { OrderChannelsResponse, OrderStatusResponse, OrderTimelineResponse } from '@/types/analytics'
 
@@ -119,6 +120,22 @@ export function usePaymentConciliation(hours = 24) {
 
 export function usePaymentMethods(hours = 24) {
   return useSWR(`payments-methods-${hours}`, () => paymentsAPI.getMethods(hours), swrConfig)
+}
+
+export function usePaymentDashboard() {
+  return useSWR('payments-dashboard', auditoriaAPI.getDashboard, swrConfig)
+}
+
+export function useReportesHistoricos() {
+  return useSWR('auditoria-reportes', auditoriaAPI.getReportes, swrConfig)
+}
+
+export function useDetalleReporte(id: string | null) {
+  return useSWR(
+    id ? `auditoria-reporte-${id}` : null,
+    () => auditoriaAPI.getDetalle(id!),
+    { ...swrConfig, refreshInterval: 0 },
+  )
 }
 
 // Overview hooks
