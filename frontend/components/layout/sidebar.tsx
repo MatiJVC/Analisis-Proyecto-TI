@@ -37,11 +37,11 @@ const navigation: NavItem[] = [
   { name: 'Suscripciones', href: '/subscriptions', icon: RefreshCw, roles: ['admin', 'analista', 'subscriptions'] },
   { name: 'Salud', href: '/health', icon: Heart, roles: ['admin', 'analista', 'salud'] },
   { name: 'Incidentes', href: '/incidents', icon: AlertTriangle, roles: ['admin', 'analista', 'incidents'] },
-  { name: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['admin', 'analista'] },
-  { name: 'IoT', href: '/iot', icon: Cpu, roles: ['admin', 'analista'] },
-  { name: 'Pagos', href: '/pagos', icon: CreditCard, roles: ['admin', 'analista'] },
-  { name: 'Inventario', href: '/inventory', icon: Package, roles: ['admin', 'analista'] },
-  { name: 'CRM', href: '/crm', icon: Users, roles: ['admin', 'analista'] },
+  { name: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['admin', 'analista', 'notifications'] },
+  { name: 'IoT', href: '/iot', icon: Cpu, roles: ['admin', 'analista', 'iot'] },
+  { name: 'Pagos', href: '/pagos', icon: CreditCard, roles: ['admin', 'analista', 'payments'] },
+  { name: 'Inventario', href: '/inventory', icon: Package, roles: ['admin', 'analista', 'inventory'] },
+  { name: 'CRM', href: '/crm', icon: Users, roles: ['admin', 'analista', 'crm'] },
 ]
 
 interface SidebarProps {

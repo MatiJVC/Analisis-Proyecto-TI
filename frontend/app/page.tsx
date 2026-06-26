@@ -1,5 +1,7 @@
 'use client'
 
+import { useAuth } from '@/components/auth/auth-provider'
+import { canAccess, type Domain } from '@/lib/roles'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import {
   Bell,
@@ -92,7 +94,19 @@ const DOMAINS = [
   },
 ]
 
+const CARD_TO_DOMAIN: Record<string, string> = {
+  health: 'salud',
+  pagos: 'payments',
+}
+
 export default function HomePage() {
+  const { roles } = useAuth()
+
+  const visibleDomains = DOMAINS.filter((d) => {
+    const domainKey = (CARD_TO_DOMAIN[d.key] || d.key) as Domain
+    return canAccess(roles, domainKey)
+  })
+
   return (
     <DashboardLayout>
       <div className="space-y-8 pb-8">
@@ -131,7 +145,7 @@ export default function HomePage() {
             Dominios
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            {DOMAINS.map((d) => {
+            {visibleDomains.map((d) => {
               const Icon = d.icon
               return (
                 <Link

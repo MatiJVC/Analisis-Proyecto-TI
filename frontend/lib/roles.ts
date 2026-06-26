@@ -15,13 +15,12 @@ export const ROLE_MATRIX = {
   subscriptions: ['admin', 'analista', 'subscriptions'],
   salud: ['admin', 'analista', 'salud'],
   incidents: ['admin', 'analista', 'incidents'],
-  // Modulos en roadmap, todavia no implementados: solo admin los ve.
-  notifications: ['admin'],
-  iot: ['admin'],
-  payments: ['admin'],
+  notifications: ['admin', 'analista', 'notifications'],
+  iot: ['admin', 'analista', 'iot'],
+  payments: ['admin', 'analista', 'payments'],
   logistics: ['admin'],
-  inventory: ['admin'],
-  crm: ['admin'],
+  inventory: ['admin', 'analista', 'inventory'],
+  crm: ['admin', 'analista', 'crm'],
   security: ['admin'],
 } as const
 
