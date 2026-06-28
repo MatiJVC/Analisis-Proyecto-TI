@@ -122,7 +122,7 @@ class TestOrdersPedidoCreado:
 
     def test_response_status_is_acknowledged(self, client: TestClient, mock_db: MagicMock):
         response = client.post("/v1/events", json=ORDERS_PEDIDO_CREADO)
-        assert response.json()["status"] == "acknowledged"
+        assert response.json()["status"] == "Evento Recibido"
 
     def test_response_contains_valid_uuid_event_id(self, client: TestClient, mock_db: MagicMock):
         response = client.post("/v1/events", json=ORDERS_PEDIDO_CREADO)
