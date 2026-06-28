@@ -115,7 +115,9 @@ def _handle_incident_resolved(db: Session, raw_event: RawEvent) -> FactIncident:
     if payload.get("resolution_time_hours") is not None:
         fact.resolution_time_hours = float(payload["resolution_time_hours"])
     elif fact.opened_at:
-        delta = resolved_at - fact.opened_at
+        t_resolved = resolved_at.replace(tzinfo=None) if resolved_at.tzinfo else resolved_at
+        t_opened = fact.opened_at.replace(tzinfo=None) if fact.opened_at.tzinfo else fact.opened_at
+        delta = t_resolved - t_opened
         fact.resolution_time_hours = round(delta.total_seconds() / 3600, 2)
 
     if "sla_met" in payload:

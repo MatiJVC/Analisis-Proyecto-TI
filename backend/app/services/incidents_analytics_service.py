@@ -13,7 +13,8 @@ from app.models.warehouse.fact_incidents import FactIncident
 
 def _format_relative_time(dt: datetime) -> str:
     now = datetime.now(tz=timezone.utc)
-    delta = now - dt
+    t_dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    delta = now - t_dt
     seconds = int(delta.total_seconds())
     if seconds < 60:
         return "just now"

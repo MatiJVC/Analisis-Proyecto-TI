@@ -194,15 +194,15 @@ class TestGetFulfillmentRate:
     def test_tabla_vacia_devuelve_cero(self, db_session: Session):
         assert get_fulfillment_rate(db_session) == 0.0
 
-    def test_requiere_status_paid_y_delivery_completed(self, db_session: Session):
+    def test_requiere_pago_y_entrega_completados(self, db_session: Session):
         """
-        Solo cuenta como 'fulfilled' si status='paid' AND delivery_completed=True.
-        Un 'paid' sin entrega y un 'delivered' sin status 'paid' no cuentan.
+        Solo cuenta como 'fulfilled' si payment_success=True AND delivery_completed=True.
+        Cualquier pedido que falte el pago o la entrega no cuenta, sin importar el status.
         """
         _seed(db_session,
-              _order(1, status="paid",      delivery_completed=True),   # ✓ fulfilled
-              _order(2, status="paid",      delivery_completed=False),  # ✗ sin entrega
-              _order(3, status="delivered", delivery_completed=True))   # ✗ status incorrecto
+              _order(1, payment_success=True,  delivery_completed=True,  status="delivered"), # ✓ fulfilled
+              _order(2, payment_success=True,  delivery_completed=False, status="paid"),      # ✗ sin entrega
+              _order(3, payment_success=False, delivery_completed=True,  status="delivered")) # ✗ sin pago exitoso
         assert get_fulfillment_rate(db_session) == round(1 / 3, 2)
 
 
