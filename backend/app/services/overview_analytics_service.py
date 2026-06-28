@@ -17,7 +17,9 @@ from sqlalchemy.orm import Session
 from app.models import FactIncident, FactOrder, FactSubscription, RawEvent
 
 def _format_relative_time(dt: datetime) -> str:
-    delta = datetime.now(tz=timezone.utc) - dt
+    now = datetime.now(tz=timezone.utc)
+    t_dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    delta = now - t_dt
     seconds = int(delta.total_seconds())
     if seconds < 60:
         return "just now"

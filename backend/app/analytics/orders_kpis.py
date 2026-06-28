@@ -228,7 +228,7 @@ def get_fulfillment_rate(db: Session, days: Optional[int] = None) -> float:
     
     total_query = db.query(func.count(FactOrder.id))
     fulfilled_query = db.query(func.count(FactOrder.id)).filter(
-        FactOrder.status == "paid",
+        FactOrder.payment_success == True,
         FactOrder.delivery_completed == True
     )
     
@@ -387,7 +387,7 @@ def get_all_kpis(db: Session, days: Optional[int] = None) -> Dict:
         ).label("attempted"),
         func.count(FactOrder.id).filter(FactOrder.stock_reserved == True).label("reserved"),
         func.count(FactOrder.id).filter(
-            FactOrder.status == "paid", FactOrder.delivery_completed == True
+            FactOrder.payment_success == True, FactOrder.delivery_completed == True
         ).label("fulfilled"),
         func.avg(FactOrder.processing_time_seconds).filter(
             FactOrder.delivery_completed == True,

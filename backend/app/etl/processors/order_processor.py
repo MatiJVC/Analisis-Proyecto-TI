@@ -117,7 +117,9 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
         
         # 7. Calcular processing_time_seconds si se entrega
         if raw_event.event_type == "pedido_entregado" and fact_order.created_at:
-            delta = fact_order.updated_at - fact_order.created_at
+            t_updated = fact_order.updated_at.replace(tzinfo=None) if fact_order.updated_at.tzinfo else fact_order.updated_at
+            t_created = fact_order.created_at.replace(tzinfo=None) if fact_order.created_at.tzinfo else fact_order.created_at
+            delta = t_updated - t_created
             fact_order.processing_time_seconds = int(delta.total_seconds())
         
         # 8. Persistir en BD
