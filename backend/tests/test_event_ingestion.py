@@ -283,7 +283,7 @@ class TestValidationFailures:
 
     def test_missing_source_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"event_type": "pedido_creado", "payload": {"order_id": "ORD-001"}},
         )
         assert response.status_code == 422
@@ -291,7 +291,7 @@ class TestValidationFailures:
 
     def test_missing_event_type_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "payload": {"order_id": "ORD-001"}},
         )
         assert response.status_code == 422
@@ -307,7 +307,7 @@ class TestValidationFailures:
     def test_empty_source_string_returns_422(self, client: TestClient, mock_db: MagicMock):
         """min_length=1 on source — empty string is not allowed."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "", "event_type": "pedido_creado", "payload": {}},
         )
         assert response.status_code == 422
@@ -315,7 +315,7 @@ class TestValidationFailures:
 
     def test_empty_event_type_string_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "event_type": "", "payload": {}},
         )
         assert response.status_code == 422
@@ -324,7 +324,7 @@ class TestValidationFailures:
     def test_source_exceeding_max_length_returns_422(self, client: TestClient, mock_db: MagicMock):
         """max_length=50 on source."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "x" * 51, "event_type": "any", "payload": {}},
         )
         assert response.status_code == 422
@@ -335,7 +335,7 @@ class TestValidationFailures:
     def test_payload_as_string_returns_422(self, client: TestClient, mock_db: MagicMock):
         """payload must be a JSON object — a string is rejected."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={
                 "source": "orders",
                 "event_type": "pedido_creado",
@@ -348,7 +348,7 @@ class TestValidationFailures:
     def test_payload_as_array_returns_422(self, client: TestClient, mock_db: MagicMock):
         """Arrays are not valid payload — schema requires a JSON object."""
         response = client.post(
-            "/events",
+            "/v1/events",
             json={
                 "source": "orders",
                 "event_type": "pedido_creado",
@@ -360,7 +360,7 @@ class TestValidationFailures:
 
     def test_payload_as_integer_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "event_type": "pedido_creado", "payload": 99},
         )
         assert response.status_code == 422
@@ -368,7 +368,7 @@ class TestValidationFailures:
 
     def test_payload_as_null_returns_422(self, client: TestClient, mock_db: MagicMock):
         response = client.post(
-            "/events",
+            "/v1/events",
             json={"source": "orders", "event_type": "pedido_creado", "payload": None},
         )
         assert response.status_code == 422
@@ -379,7 +379,7 @@ class TestValidationFailures:
     def test_corrupt_json_body_returns_422(self, client: TestClient, mock_db: MagicMock):
         """Truncated JSON — FastAPI must reject before Pydantic even runs."""
         response = client.post(
-            "/events",
+            "/v1/events",
             content=b'{"source": "orders", "event_type": "pedido_creado", "payload":',
             headers={"Content-Type": "application/json"},
         )

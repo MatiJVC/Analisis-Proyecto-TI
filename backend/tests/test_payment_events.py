@@ -129,7 +129,7 @@ class TestIntentoPago:
 
     def test_status_acknowledged(self, client: TestClient, mock_db: MagicMock):
         body = client.post("/v1/events", json=INTENTO_PAGO).json()
-        assert body["status"] == "Evento Recibido"
+        assert body["status"] == "acknowledged"
         assert "event_id" in body
 
     def test_source_y_event_type_guardados(self, client: TestClient, mock_db: MagicMock):
