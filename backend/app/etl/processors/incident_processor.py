@@ -18,10 +18,10 @@ def _parse_datetime(value: Any) -> Optional[datetime]:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
             return None
     return None
