@@ -1,11 +1,8 @@
-"""create CRM warehouse tables
+"""create CRM warehouse tables (delegado a Base.metadata.create_all)
 
-Crea las 5 tablas del módulo CRM/Soporte:
-  - dim_clientes_crm
-  - fact_tickets
-  - fact_interacciones
-  - fact_sla_violaciones
-  - fact_ticket_articulos
+Las tablas del módulo CRM/Soporte se crean via Base.metadata.create_all()
+en el entrypoint, igual que el resto de los módulos.
+Esta migración se mantiene en la cadena para no romper installs existentes.
 
 Revision ID: 0004
 Revises: 0003
@@ -21,6 +18,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    pass  # tablas creadas por Base.metadata.create_all() en el entrypoint
+
+
+def _upgrade_original() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing_tables = inspector.get_table_names()
@@ -232,17 +233,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    existing_tables = inspector.get_table_names()
-
-    if "fact_ticket_articulos" in existing_tables:
-        op.drop_table("fact_ticket_articulos")
-    if "fact_sla_violaciones" in existing_tables:
-        op.drop_table("fact_sla_violaciones")
-    if "fact_interacciones" in existing_tables:
-        op.drop_table("fact_interacciones")
-    if "fact_tickets" in existing_tables:
-        op.drop_table("fact_tickets")
-    if "dim_clientes_crm" in existing_tables:
-        op.drop_table("dim_clientes_crm")
+    pass  # no-op: tablas gestionadas por Base.metadata

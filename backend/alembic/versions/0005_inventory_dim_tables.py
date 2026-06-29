@@ -21,6 +21,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    pass  # tablas creadas por Base.metadata.create_all() en el entrypoint
+
+
+def _upgrade_original() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing_tables = inspector.get_table_names()
@@ -71,11 +75,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    existing_tables = inspector.get_table_names()
-
-    if "dim_locations" in existing_tables:
-        op.drop_table("dim_locations")
-    if "dim_products" in existing_tables:
-        op.drop_table("dim_products")
+    pass  # no-op: tablas gestionadas por Base.metadata
