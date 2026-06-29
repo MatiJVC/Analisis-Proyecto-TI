@@ -53,7 +53,7 @@ class TestParseDt:
         from app.etl.processors.crm_processor import _parse_dt
         result = _parse_dt("2026-06-13T10:30:00Z")
         assert result is not None
-        assert result.tzinfo is None  # replace(tzinfo=None) aplicado
+        assert result.tzinfo == timezone.utc
 
     def test_invalid_string_returns_none(self):
         from app.etl.processors.crm_processor import _parse_dt
@@ -93,7 +93,7 @@ class TestHandleTicketCreado:
             "asunto": "Problema con factura",
             "estado": "Abierto",
             "prioridad": "Alta",
-            "canal": "email",
+            "canal": "Email",
         }
         raw = _make_raw_event("ticket.creado", payload)
         result = process_crm_event(db, raw)
