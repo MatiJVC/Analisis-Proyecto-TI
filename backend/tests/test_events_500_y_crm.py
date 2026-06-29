@@ -6,7 +6,7 @@ Escenarios
 ----------
   500 por fallo en DB        db.add() lanza excepción → el endpoint devuelve 500
   500 por fallo en commit    db.commit() lanza excepción → el endpoint devuelve 500
-  CRM ticket.creado          evento válido → 202 con status "Evento Recibido"
+  CRM ticket.creado          evento válido → 202 con status "acknowledged"
   CRM interaccion.creada     evento válido → 202
   CRM ticket.sla_violado     evento válido → 202
   Respuesta nunca 500        ante payload válido el Literal del schema no rompe
@@ -104,7 +104,7 @@ class TestForzar500:
 
     def test_payload_valido_no_produce_500(self, client: TestClient, mock_db: MagicMock):
         """
-        Verifica que el fix del Literal["Evento Recibido"] funciona:
+        Verifica que el fix del Literal["acknowledged"] funciona:
         antes del fix, este request devolvía 500 por ValidationError en el schema.
         """
         response = client.post("/v1/events", json=CRM_TICKET_CREADO)
@@ -124,9 +124,9 @@ class TestCRMEventoCorrecto:
         assert response.status_code == 202
 
     def test_respuesta_tiene_status_evento_recibido(self, client: TestClient, mock_db: MagicMock):
-        """El campo status debe ser exactamente 'Evento Recibido', no 'acknowledged'."""
+        """El campo status debe ser exactamente 'acknowledged', no otro valor."""
         body = client.post("/v1/events", json=CRM_TICKET_CREADO).json()
-        assert body["status"] == "Evento Recibido"
+        assert body["status"] == "acknowledged"
 
     def test_respuesta_tiene_event_id_uuid_v4(self, client: TestClient, mock_db: MagicMock):
         body = client.post("/v1/events", json=CRM_TICKET_CREADO).json()
@@ -149,7 +149,7 @@ class TestCRMEventoCorrecto:
     def test_interaccion_creada_devuelve_202(self, client: TestClient, mock_db: MagicMock):
         response = client.post("/v1/events", json=CRM_INTERACCION)
         assert response.status_code == 202
-        assert response.json()["status"] == "Evento Recibido"
+        assert response.json()["status"] == "acknowledged"
 
     def test_interaccion_source_y_tipo_correctos(self, client: TestClient, mock_db: MagicMock):
         client.post("/v1/events", json=CRM_INTERACCION)
@@ -160,7 +160,7 @@ class TestCRMEventoCorrecto:
     def test_sla_violado_devuelve_202(self, client: TestClient, mock_db: MagicMock):
         response = client.post("/v1/events", json=CRM_SLA_VIOLADO)
         assert response.status_code == 202
-        assert response.json()["status"] == "Evento Recibido"
+        assert response.json()["status"] == "acknowledged"
 
     def test_sla_payload_metricas_almacenadas(self, client: TestClient, mock_db: MagicMock):
         client.post("/v1/events", json=CRM_SLA_VIOLADO)

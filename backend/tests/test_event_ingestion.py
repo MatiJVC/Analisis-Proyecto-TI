@@ -122,7 +122,7 @@ class TestOrdersPedidoCreado:
 
     def test_response_status_is_acknowledged(self, client: TestClient, mock_db: MagicMock):
         response = client.post("/v1/events", json=ORDERS_PEDIDO_CREADO)
-        assert response.json()["status"] == "Evento Recibido"
+        assert response.json()["status"] == "acknowledged"
 
     def test_response_contains_valid_uuid_event_id(self, client: TestClient, mock_db: MagicMock):
         response = client.post("/v1/events", json=ORDERS_PEDIDO_CREADO)
@@ -177,7 +177,7 @@ class TestCRMTicketResuelto:
 
     def test_response_shape(self, client: TestClient, mock_db: MagicMock):
         body = client.post("/v1/events", json=CRM_TICKET_RESUELTO).json()
-        assert body["status"] == "Evento Recibido"
+        assert body["status"] == "acknowledged"
         assert "event_id" in body
 
     def test_source_and_event_type_stored(self, client: TestClient, mock_db: MagicMock):

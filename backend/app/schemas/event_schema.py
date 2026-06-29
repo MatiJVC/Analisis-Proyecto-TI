@@ -43,13 +43,13 @@ class EventCreate(BaseModel):
 
 class AcknowledgeResponse(BaseModel):
     """Respuesta 202 — confirma recepción sin esperar procesamiento ETL."""
-    status: Literal["Evento Recibido"]
+    status: Literal["acknowledged"]
     event_id: UUID
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "status": "Evento Recibido",
+                "status": "acknowledged",
                 "event_id": "550e8400-e29b-41d4-a716-446655440000",
             }
         }
