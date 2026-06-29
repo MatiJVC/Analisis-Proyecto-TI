@@ -181,4 +181,4 @@ async def ingest_event(
         # Redis no disponible en desarrollo — fallback a BackgroundTasks en-proceso
         background_tasks.add_task(_run_etl, event_id=db_event.event_id, source=db_event.source)
 
-    return AcknowledgeResponse(status="acknowledged", event_id=event_id)
+    return AcknowledgeResponse(status="Evento Recibido", event_id=event_id)
