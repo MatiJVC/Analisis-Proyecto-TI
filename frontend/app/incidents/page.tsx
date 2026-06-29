@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { RoleGate } from '@/components/auth/role-gate'
 import { KPICard, KPICardSkeleton } from '@/components/dashboard/kpi-card'
@@ -33,10 +34,50 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import type { Incident } from '@/types/analytics'
 
+const SEVERITY_DISTRIBUTION = [
+  { key: 'critical' as const, label: 'Crítica', color: 'var(--destructive)' },
+  { key: 'high' as const, label: 'Alta', color: 'var(--warning)' },
+  { key: 'medium' as const, label: 'Media', color: 'var(--chart-2)' },
+  { key: 'low' as const, label: 'Baja', color: 'var(--muted-foreground)' },
+]
+
+function formatResolutionTime(hours: number): string {
+  if (hours <= 0) return '0h'
+  if (hours < 1) return `${Math.round(hours * 60)}min`
+  return `${hours}h`
+}
+
+function buildSeverityDistribution(incidents: Incident[] | undefined) {
+  const active = incidents?.filter((i) => i.status !== 'resolved') ?? []
+  const total = active.length
+
+  return SEVERITY_DISTRIBUTION.map(({ key, label, color }) => {
+    const count = active.filter((i) => i.severity === key).length
+    const percentage = total > 0 ? Math.round((count / total) * 1000) / 10 : 0
+    return { severity: label, count, color, percentage }
+  })
+}
+
 function IncidentsContent() {
   const { data: kpis, isLoading: kpisLoading } = useIncidentKPIs()
   const { data: timeline, isLoading: timelineLoading } = useIncidentTimeline()
   const { data: incidents, isLoading: incidentsLoading } = useIncidents()
+
+  const activeIncidents = useMemo(
+    () => incidents?.filter((i: Incident) => i.status !== 'resolved') ?? [],
+    [incidents],
+  )
+
+  const severityDistribution = useMemo(
+    () => buildSeverityDistribution(incidents),
+    [incidents],
+  )
+
+  const avgIncidentsPerDay = useMemo(() => {
+    if (!timeline?.length) return 0
+    const totalOpened = timeline.reduce((sum, point) => sum + point.opened, 0)
+    return Math.round((totalOpened / timeline.length) * 10) / 10
+  }, [timeline])
 
   return (
       <div className="space-y-6">
@@ -142,7 +183,7 @@ function IncidentsContent() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {incidents?.filter((i: Incident) => i.status !== 'resolved').map((incident: Incident) => (
+                  {activeIncidents.map((incident: Incident) => (
                     <div
                       key={incident.id}
                       className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4"
@@ -175,12 +216,7 @@ function IncidentsContent() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { severity: 'Crítica', count: 2, color: 'var(--destructive)', percentage: 16.7 },
-                { severity: 'Alta', count: 4, color: 'var(--warning)', percentage: 33.3 },
-                { severity: 'Media', count: 4, color: 'var(--chart-2)', percentage: 33.3 },
-                { severity: 'Baja', count: 2, color: 'var(--muted-foreground)', percentage: 16.7 },
-              ].map((item) => (
+              {severityDistribution.map((item) => (
                 <div key={item.severity} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">{item.severity}</span>
@@ -207,19 +243,21 @@ function IncidentsContent() {
         <ChartCard title="Métricas de respuesta" description="Rendimiento en respuesta a incidentes">
           <div className="grid gap-4 md:grid-cols-4">
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
-              <div className="text-3xl font-bold text-foreground">12min</div>
+              <div className="text-3xl font-bold text-foreground">N/D</div>
               <div className="text-sm text-muted-foreground mt-1">Tiempo medio de reconocimiento</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
-              <div className="text-3xl font-bold text-foreground">2.4h</div>
+              <div className="text-3xl font-bold text-foreground">
+                {formatResolutionTime(kpis?.avgResolutionTime ?? 0)}
+              </div>
               <div className="text-sm text-muted-foreground mt-1">Tiempo medio de resolución</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
-              <div className="text-3xl font-bold text-success">94.5%</div>
+              <div className="text-3xl font-bold text-success">{kpis?.slaCompliance ?? 0}%</div>
               <div className="text-sm text-muted-foreground mt-1">SLA cumplido</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
-              <div className="text-3xl font-bold text-foreground">8.2</div>
+              <div className="text-3xl font-bold text-foreground">{avgIncidentsPerDay}</div>
               <div className="text-sm text-muted-foreground mt-1">Incidentes promedio/día</div>
             </div>
           </div>

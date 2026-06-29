@@ -122,12 +122,20 @@ export const iotAPI = {
     fetchAPI(`/v1/kpis/iot/timeline?days=${days}`, []),
 };
 
+const _emptyIncidentKPIs = {
+  activeIncidents: 0,
+  resolvedToday: 0,
+  avgResolutionTime: 0,
+  slaCompliance: 0,
+  criticalCount: 0,
+};
+
 // Incidents API
 export const incidentsAPI = {
-  getKPIs: () => fetchAPI("/v1/kpis/incidents/kpis", mockData.incidentKPIs),
+  getKPIs: () => fetchAPI("/v1/kpis/incidents/kpis", _emptyIncidentKPIs),
   getTimeline: () =>
-    fetchAPI("/v1/kpis/incidents/timeline?days=14", mockData.incidentTimeline),
-  getList: () => fetchAPI("/v1/kpis/incidents/list", mockData.incidents),
+    fetchAPI("/v1/kpis/incidents/timeline?days=14", []),
+  getList: () => fetchAPI("/v1/kpis/incidents/list", []),
 };
 
 // Payments API

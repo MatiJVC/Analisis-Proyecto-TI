@@ -10,9 +10,6 @@ import type {
   IoTKPIs,
   IoTDevice,
   IoTAlert,
-  IncidentKPIs,
-  IncidentTimeline,
-  Incident,
   PaymentKPIs,
   PaymentTimeline,
   LogisticsKPIs,
@@ -254,77 +251,6 @@ export const iotAlerts: IoTAlert[] = [
     severity: "warning",
     message: "Temperature exceeds threshold",
     timestamp: "30 min ago",
-  },
-];
-
-// Incidents Mock Data
-export const incidentKPIs: IncidentKPIs = {
-  activeIncidents: 12,
-  resolvedToday: 8,
-  avgResolutionTime: 2.4,
-  slaCompliance: 94.5,
-  criticalCount: 2,
-};
-
-export const incidentTimeline: IncidentTimeline[] = Array.from(
-  { length: 14 },
-  (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (13 - i));
-    return {
-      date: date.toISOString().split("T")[0],
-      opened: Math.floor(5 + Math.random() * 10),
-      resolved: Math.floor(4 + Math.random() * 12),
-      critical: Math.floor(Math.random() * 3),
-    };
-  },
-);
-
-export const incidents: Incident[] = [
-  {
-    id: "INC-001",
-    title: "Payment Gateway Timeout",
-    severity: "critical",
-    status: "investigating",
-    assignee: "John D.",
-    createdAt: "2 hours ago",
-    updatedAt: "30 min ago",
-  },
-  {
-    id: "INC-002",
-    title: "High API Latency",
-    severity: "high",
-    status: "open",
-    assignee: "Sarah M.",
-    createdAt: "4 hours ago",
-    updatedAt: "1 hour ago",
-  },
-  {
-    id: "INC-003",
-    title: "Email Delivery Delays",
-    severity: "medium",
-    status: "investigating",
-    assignee: "Mike R.",
-    createdAt: "6 hours ago",
-    updatedAt: "2 hours ago",
-  },
-  {
-    id: "INC-004",
-    title: "Database Connection Pool",
-    severity: "critical",
-    status: "open",
-    assignee: "Lisa K.",
-    createdAt: "1 hour ago",
-    updatedAt: "45 min ago",
-  },
-  {
-    id: "INC-005",
-    title: "CDN Cache Miss Rate",
-    severity: "low",
-    status: "resolved",
-    assignee: "Tom H.",
-    createdAt: "8 hours ago",
-    updatedAt: "3 hours ago",
   },
 ];
 
@@ -809,6 +735,6 @@ export const globalKPIs = {
   notificationSuccessRate: notificationKPIs.deliveryRate,
   activeSubscriptions: subscriptionKPIs.activeSubscriptions,
   iotAlerts: iotKPIs.totalAlerts,
-  incidentCount: incidentKPIs.activeIncidents,
+  incidentCount: 0,
   paymentFailureRate: paymentKPIs.failureRate,
 };
