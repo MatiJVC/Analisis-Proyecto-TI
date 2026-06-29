@@ -177,7 +177,7 @@ class TestCRMTicketResuelto:
 
     def test_response_shape(self, client: TestClient, mock_db: MagicMock):
         body = client.post("/v1/events", json=CRM_TICKET_RESUELTO).json()
-        assert body["status"] == "acknowledged"
+        assert body["status"] == "Evento Recibido"
         assert "event_id" in body
 
     def test_source_and_event_type_stored(self, client: TestClient, mock_db: MagicMock):
