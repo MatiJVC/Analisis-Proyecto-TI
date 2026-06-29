@@ -115,8 +115,8 @@ def get_incidents_timeline(db: Session, days: int = 14) -> List[Dict[str, Any]]:
 
     d = start
     while d <= end:
-        day_start = datetime.combine(d, datetime.min.time())
-        day_end = datetime.combine(d, datetime.max.time())
+        day_start = datetime.combine(d, datetime.min.time()).replace(tzinfo=timezone.utc)
+        day_end = datetime.combine(d, datetime.max.time()).replace(tzinfo=timezone.utc)
 
         opened = (
             db.query(func.count(FactIncident.id))
