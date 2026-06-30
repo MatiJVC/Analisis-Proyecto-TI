@@ -23,7 +23,6 @@ class RawEvent(Base):
     # ETL orchestration — set to TRUE once event is promoted to Silver/Gold
     processed = Column(Boolean, nullable=False, default=False)
 
-
     __table_args__ = (
         # Composite used by Power BI views (source filter + time range)
         Index("idx_fre_source_ingested", "source", "ingested_at"),

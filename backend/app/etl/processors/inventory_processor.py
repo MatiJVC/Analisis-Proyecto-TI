@@ -134,6 +134,7 @@ def _handle_movement(db: Session, raw_event: Any) -> FactInventoryMovement:
 
     movement_at = (
         _parse_dt(payload.get("created_at"))
+        or _parse_dt(payload.get("received_at"))
         or _parse_dt(payload.get("movement_at"))
         or datetime.now(tz=timezone.utc)
     )
