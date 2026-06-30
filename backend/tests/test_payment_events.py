@@ -1,5 +1,5 @@
 """
-Tests de eventos de pagos — POST /v1/events con source=pagos.
+Tests de eventos de pagos — POST /v1/events con source=payments.
 
 Cubre el ciclo de vida completo de un pago:
   1. intento_pago       → estado esperando_revisión
@@ -28,7 +28,7 @@ from app.models.raw.raw_events import RawEvent
 # =============================================================================
 
 INTENTO_PAGO = {
-    "source": "pagos",
+    "source": "payments",
     "event_type": "intento_pago",
     "payload": {
         "transaction_token": "550e8400-e29b-41d4-a716-446655440000",
@@ -41,7 +41,7 @@ INTENTO_PAGO = {
 }
 
 PAGO_EXITOSO = {
-    "source": "pagos",
+    "source": "payments",
     "event_type": "pago_exitoso",
     "payload": {
         "transaction_token": "550e8400-e29b-41d4-a716-446655440000",
@@ -55,7 +55,7 @@ PAGO_EXITOSO = {
 }
 
 PAGO_RECHAZADO_MONTO = {
-    "source": "pagos",
+    "source": "payments",
     "event_type": "pago_rechazado",
     "payload": {
         "transaction_token": "660e8400-e29b-41d4-a716-446655440001",
@@ -69,7 +69,7 @@ PAGO_RECHAZADO_MONTO = {
 }
 
 PAGO_RECHAZADO_TRANSACCION = {
-    "source": "pagos",
+    "source": "payments",
     "event_type": "pago_rechazado",
     "payload": {
         "transaction_token": "770e8400-e29b-41d4-a716-446655440002",
@@ -83,7 +83,7 @@ PAGO_RECHAZADO_TRANSACCION = {
 }
 
 PAGO_REEMBOLSADO = {
-    "source": "pagos",
+    "source": "payments",
     "event_type": "pago_reembolsado",
     "payload": {
         "transaction_token": "550e8400-e29b-41d4-a716-446655440000",
@@ -96,7 +96,7 @@ PAGO_REEMBOLSADO = {
 }
 
 PAGO_SUBSCRIPTION = {
-    "source": "pagos",
+    "source": "payments",
     "event_type": "pago_exitoso",
     "payload": {
         "transaction_token": "880e8400-e29b-41d4-a716-446655440003",
@@ -135,7 +135,7 @@ class TestIntentoPago:
     def test_source_y_event_type_guardados(self, client: TestClient, mock_db: MagicMock):
         client.post("/v1/events", json=INTENTO_PAGO)
         saved = _saved(mock_db)
-        assert saved.source == "pagos"
+        assert saved.source == "payments"
         assert saved.event_type == "intento_pago"
 
     def test_transaction_token_es_uuid(self, client: TestClient, mock_db: MagicMock):
@@ -168,9 +168,9 @@ class TestPagoExitoso:
     def test_returns_202(self, client: TestClient, mock_db: MagicMock):
         assert client.post("/v1/events", json=PAGO_EXITOSO).status_code == 202
 
-    def test_source_pagos(self, client: TestClient, mock_db: MagicMock):
+    def test_source_payments(self, client: TestClient, mock_db: MagicMock):
         client.post("/v1/events", json=PAGO_EXITOSO)
-        assert _saved(mock_db).source == "pagos"
+        assert _saved(mock_db).source == "payments"
         assert _saved(mock_db).event_type == "pago_exitoso"
 
     def test_token_consistente_con_intento(self, client: TestClient, mock_db: MagicMock):
