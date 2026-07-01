@@ -291,6 +291,35 @@ class TestFlujoPagoRechazadoTransaccion:
         assert fact.order_id is None
 
 
+# ─── Flujo 4b: pago_rechazado genérico → Rechazado ───────────────────────────
+
+class TestFlujoPagoRechazadoGenerico:
+
+    @patch("app.etl.processors.payment_processor.get_error_code_id", return_value=7)
+    @patch("app.etl.processors.payment_processor.get_or_create_estado")
+    def test_rechazo_banco_sin_keyword_es_rechazado(self, mock_estado_fn, mock_error_fn, db):
+        """Rechazo por banco o saldo insuficiente sin keyword de monto/transacción → Rechazado."""
+        mock_estado_fn.return_value = _mock_estado("Rechazado", id_=5)
+        payload = {**PAGO_RECHAZADO_MONTO_PAYLOAD, "error_code": "ERR_BANCO_RECHAZA"}
+        raw = _make_raw_event("pago_rechazado", payload)
+
+        process_payment_event(db, raw)
+
+        mock_estado_fn.assert_called_once_with(db, "Rechazado")
+
+    @patch("app.etl.processors.payment_processor.get_error_code_id", return_value=None)
+    @patch("app.etl.processors.payment_processor.get_or_create_estado")
+    def test_rechazo_sin_error_code_es_rechazado(self, mock_estado_fn, mock_error_fn, db):
+        """Rechazo sin error_code (banco rechaza sin código) → Rechazado, no esperando_revisión."""
+        mock_estado_fn.return_value = _mock_estado("Rechazado", id_=5)
+        payload = {k: v for k, v in PAGO_RECHAZADO_MONTO_PAYLOAD.items() if k != "error_code"}
+        raw = _make_raw_event("pago_rechazado", payload)
+
+        process_payment_event(db, raw)
+
+        mock_estado_fn.assert_called_once_with(db, "Rechazado")
+
+
 # ─── Flujo 5: pago_reembolsado → sin escritura warehouse ──────────────────────
 
 class TestFlujoPagoReembolsado:

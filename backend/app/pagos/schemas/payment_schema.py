@@ -10,6 +10,7 @@ ALLOWED_ESTADOS = [
     "esperando_revisión",
     "discrepancia_de_monto",
     "discrepancia_de_transacciones",
+    "Rechazado",
 ]
 
 

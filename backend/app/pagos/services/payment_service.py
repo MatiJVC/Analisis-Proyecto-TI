@@ -17,6 +17,7 @@ ALLOWED_ESTADOS = [
     "esperando_revisión",
     "discrepancia_de_monto",
     "discrepancia_de_transacciones",
+    "Rechazado",
 ]
 
 
@@ -84,7 +85,12 @@ def confirm_payment(db: Session, token: str, confirmation: dict) -> FactPagos:
             fact.estado_conciliacion_id = estado.id
             fact.error_code_id = None
         else:
-            estado = get_or_create_estado(db, "discrepancia_de_monto")
+            raw_lower = (raw_codigo_error or "").lower()
+            if "monto" in raw_lower or "amount" in raw_lower:
+                status_name = "discrepancia_de_monto"
+            else:
+                status_name = "Rechazado"
+            estado = get_or_create_estado(db, status_name)
             fact.estado_conciliacion_id = estado.id
             fact.error_code_id = get_error_code_id(db, raw_codigo_error or "rejected")
 

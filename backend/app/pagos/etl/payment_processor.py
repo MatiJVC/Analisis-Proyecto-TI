@@ -14,6 +14,7 @@ PAYMENT_STATUS_NAMES = [
     "esperando_revisión",
     "discrepancia_de_monto",
     "discrepancia_de_transacciones",
+    "Rechazado",
 ]
 
 
@@ -38,7 +39,7 @@ def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
                 return "discrepancia_de_monto"
             if "transaccion" in lower_code or "transaction" in lower_code:
                 return "discrepancia_de_transacciones"
-        return "esperando_revisión"
+        return "Rechazado"
 
     return "esperando_revisión"
 

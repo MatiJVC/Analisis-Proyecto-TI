@@ -24,7 +24,7 @@ def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
                 return "discrepancia_de_monto"
             if "transaccion" in lower or "transaction" in lower:
                 return "discrepancia_de_transacciones"
-        return "esperando_revisión"
+        return "Rechazado"
     return "esperando_revisión"
 
 
