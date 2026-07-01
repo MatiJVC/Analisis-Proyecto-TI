@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, event
 
 from app.db.base import Base
 
@@ -34,6 +34,17 @@ ERROR_CODE_CATALOG = [
     ("invalid_amount",       "Monto inválido o fuera de rango permitido",        "validacion", False),
     ("internal_error",       "Error interno del sistema de pagos",               "interno",    False),
 ]
+
+
+@event.listens_for(DimErrorCode.__table__, "after_create")
+def _seed_error_codes(target, connection, **kwargs):
+    connection.execute(
+        target.insert(),
+        [
+            {"code": code, "descripcion": desc, "categoria": cat, "es_falla_masiva": masiva}
+            for code, desc, cat, masiva in ERROR_CODE_CATALOG
+        ],
+    )
 
 
 def get_error_code_id(db, raw_code: str | None) -> int | None:

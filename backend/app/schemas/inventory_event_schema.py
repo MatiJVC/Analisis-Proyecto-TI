@@ -34,6 +34,14 @@ InventoryEventType = Literal[
 
 INVENTORY_ALERT_TYPES = ("critical_threshold_reached", "stock_out_error")
 
+# Tipos de movimiento que usan payload genérico pero igual requieren sku_id en el ETL
+INVENTORY_GENERIC_MOVEMENT_TYPES = (
+    "stock_received",
+    "stock_dispatched",
+    "stock_adjusted",
+    "stock_transfer_initiated",
+)
+
 
 # ---------------------------------------------------------------------------
 # Payload: stock_reserved
@@ -261,6 +269,16 @@ class InventoryEventCreate(BaseModel):
                 event_type=event_type,
                 campos_requeridos=["sku_id", "location_id", "current_stock", "threshold_limite"],
             )
+
+        elif event_type in INVENTORY_GENERIC_MOVEMENT_TYPES:
+            # El ETL requiere sku_id para todos los tipos de movimiento;
+            # validarlo aquí evita que eventos incompletos lleguen a fact_raw_events
+            # y queden atascados con processed=False.
+            if not payload.get("sku_id"):
+                raise ValueError(
+                    f"El payload para el evento '{event_type}' requiere el campo 'sku_id'. "
+                    "Asegúrese de que el módulo de Inventario incluya el SKU del producto afectado."
+                )
 
         return self
 

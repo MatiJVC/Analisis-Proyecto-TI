@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.raw.raw_events import RawEvent
 from app.pagos.models.fact_pagos import FactPagos
 from app.pagos.models.dim_error_codes import get_error_code_id
-from app.pagos.services.payment_service import get_or_create_estado
+from app.pagos.services.payment_service import get_or_create_estado, confirm_payment, _hash_token
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +24,29 @@ def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
                 return "discrepancia_de_monto"
             if "transaccion" in lower or "transaction" in lower:
                 return "discrepancia_de_transacciones"
-        return "esperando_revisión"
+        return "Rechazado"
     return "esperando_revisión"
 
 
 def process_payment_event(db: Session, raw_event: RawEvent) -> None:
     if raw_event.event_type == "pago_reembolsado":
         logger.info("PAYMENT-ETL pago_reembolsado registrado en raw_events — sin acción warehouse: event_id=%s", raw_event.event_id)
+        return
+
+    if raw_event.event_type == "confirmar_pago":
+        payload = raw_event.payload or {}
+        token = payload.get("token_transaccion")
+        if not token:
+            raise ValueError("token_transaccion es obligatorio para confirmar_pago")
+        confirmation = {
+            "approved": payload.get("approved"),
+            "transaction_id": payload.get("transaction_id"),
+            "codigo_error": payload.get("codigo_error"),
+            "timestamp_evento": payload.get("timestamp_evento"),
+        }
+        fact = confirm_payment(db, token, confirmation)
+        db.commit()
+        logger.info("PAYMENT-ETL confirmar_pago procesado: token=%s estado_id=%s", token, fact.estado_conciliacion_id)
         return
 
     payload = raw_event.payload or {}
@@ -60,7 +76,7 @@ def process_payment_event(db: Session, raw_event: RawEvent) -> None:
         order_id=str(order_id) if order_id is not None else None,
         subscription_id=str(subscription_id) if subscription_id is not None else None,
         monto=amount,
-        token_transaccion=str(transaction_token),
+        token_transaccion=_hash_token(str(transaction_token)),
         payment_method=payment_method,
         error_code_id=get_error_code_id(db, error_code),
         timestamp_evento=timestamp,
