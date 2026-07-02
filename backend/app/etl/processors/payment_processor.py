@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
-    if event_type == "pago_exitoso":
+    if event_type in ("pago_exitoso", "payment.processed"):
         return "Aprobado"
-    if event_type == "intento_pago":
+    if event_type in ("intento_pago", "intento.pago"):
         return "esperando_revisión"
     if event_type == "pago_rechazado":
         if error_code:
@@ -50,11 +50,15 @@ def process_payment_event(db: Session, raw_event: RawEvent) -> None:
         return
 
     payload = raw_event.payload or {}
-    transaction_token = payload.get("transaction_token")
+    transaction_token = (
+        payload.get("transaction_token")
+        or payload.get("token_transaccion")
+        or payload.get("transaction_id")
+    )
     if not transaction_token:
         raise ValueError("transaction_token es obligatorio para eventos de pagos")
 
-    amount = payload.get("amount") or 0.0
+    amount = payload.get("amount") or payload.get("monto") or 0.0
     order_id = payload.get("order_id")
     subscription_id = payload.get("subscription_id")
     error_code = (payload.get("error_code") or "").strip() or None
