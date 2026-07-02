@@ -151,23 +151,28 @@ def get_detalle_reporte(db: Session, reporte_id: int) -> Dict[str, Any] | None:
     start = datetime.combine(fecha, datetime.min.time()).replace(tzinfo=timezone.utc)
     end = datetime.combine(fecha, datetime.max.time()).replace(tzinfo=timezone.utc)
 
-    total = (
-        db.query(func.count(FactPagos.transaction_id))
+    _RESOLVED = ("Aprobado", "discrepancia_de_monto", "discrepancia_de_transacciones")
+    _FAILURES  = ("discrepancia_de_monto", "discrepancia_de_transacciones")
+
+    # Pago único por token_transaccion: tomar el estado más reciente del día
+    latest = (
+        db.query(FactPagos.token_transaccion, DimEstadosConciliacion.nombre.label("estado"))
+        .join(DimEstadosConciliacion, FactPagos.estado_conciliacion_id == DimEstadosConciliacion.id)
         .filter(FactPagos.timestamp_evento >= start, FactPagos.timestamp_evento <= end)
-        .scalar()
-        or 0
+        .distinct(FactPagos.token_transaccion)
+        .order_by(FactPagos.token_transaccion, FactPagos.timestamp_evento.desc())
+        .subquery()
     )
 
+    total = (
+        db.query(func.count()).select_from(latest)
+        .filter(latest.c.estado.in_(_RESOLVED))
+        .scalar() or 0
+    )
     failed = (
-        db.query(func.count(FactPagos.transaction_id))
-        .join(DimEstadosConciliacion, FactPagos.estado_conciliacion_id == DimEstadosConciliacion.id)
-        .filter(
-            DimEstadosConciliacion.nombre != "Aprobado",
-            FactPagos.timestamp_evento >= start,
-            FactPagos.timestamp_evento <= end,
-        )
-        .scalar()
-        or 0
+        db.query(func.count()).select_from(latest)
+        .filter(latest.c.estado.in_(_FAILURES))
+        .scalar() or 0
     )
     tasa_rechazo = round(float(failed) / float(total) * 100.0, 4) if total else 0.0
 
@@ -176,11 +181,18 @@ def get_detalle_reporte(db: Session, reporte_id: int) -> Dict[str, Any] | None:
     # Misma fecha hace 7 días para comparación semana a semana
     prev_start = start - timedelta(days=7)
     prev_end   = end   - timedelta(days=7)
-    prev_total = (
-        db.query(func.count(FactPagos.transaction_id))
+    latest_prev = (
+        db.query(FactPagos.token_transaccion, DimEstadosConciliacion.nombre.label("estado"))
+        .join(DimEstadosConciliacion, FactPagos.estado_conciliacion_id == DimEstadosConciliacion.id)
         .filter(FactPagos.timestamp_evento >= prev_start, FactPagos.timestamp_evento <= prev_end)
-        .scalar()
-        or 0
+        .distinct(FactPagos.token_transaccion)
+        .order_by(FactPagos.token_transaccion, FactPagos.timestamp_evento.desc())
+        .subquery()
+    )
+    prev_total = (
+        db.query(func.count()).select_from(latest_prev)
+        .filter(latest_prev.c.estado.in_(_RESOLVED))
+        .scalar() or 0
     )
     crecimiento = (
         round((total - prev_total) / prev_total * 100.0, 2) if prev_total > 0 else 0.0

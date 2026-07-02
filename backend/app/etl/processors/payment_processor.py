@@ -1,4 +1,5 @@
 import logging
+import uuid as _uuid_mod
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -6,8 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.models.raw.raw_events import RawEvent
 from app.pagos.models.fact_pagos import FactPagos
+from app.pagos.models.fact_payments_events import FactPaymentsEvent
 from app.pagos.models.dim_error_codes import get_error_code_id
 from app.pagos.services.payment_service import get_or_create_estado, confirm_payment, _hash_token
+
+_AUDIT_STATUSES = {"esperando_revisión", "Aprobado", "discrepancia_de_monto", "discrepancia_de_transacciones"}
+
+
+def _to_uuid(value) -> _uuid_mod.UUID:
+    try:
+        return _uuid_mod.UUID(str(value))
+    except (ValueError, AttributeError):
+        return _uuid_mod.uuid4()
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +56,27 @@ def process_payment_event(db: Session, raw_event: RawEvent) -> None:
             "timestamp_evento": payload.get("timestamp_evento"),
         }
         fact = confirm_payment(db, token, confirmation)
+        approved = payload.get("approved")
+        raw_err = (payload.get("codigo_error") or "").lower()
+        if approved:
+            audit_status = "Aprobado"
+        elif "monto" in raw_err or "amount" in raw_err:
+            audit_status = "discrepancia_de_monto"
+        elif "transaccion" in raw_err or "transaction" in raw_err:
+            audit_status = "discrepancia_de_transacciones"
+        else:
+            audit_status = "esperando_revisión"
+        db.add(FactPaymentsEvent(
+            transaction_id=_to_uuid(payload.get("transaction_id")),
+            amount=float(fact.monto or 0),
+            token_transaccion=_hash_token(token),
+            codigo_error=(payload.get("codigo_error") or "").strip() or None,
+            status=audit_status,
+            timestamp_evento=datetime.now(tz=timezone.utc),
+        ))
+        db.flush()
         db.commit()
-        logger.info("PAYMENT-ETL confirmar_pago procesado: token=%s estado_id=%s", token, fact.estado_conciliacion_id)
+        logger.info("PAYMENT-ETL confirmar_pago procesado: token=%s estado=%s", token, audit_status)
         return
 
     payload = raw_event.payload or {}
@@ -76,17 +106,34 @@ def process_payment_event(db: Session, raw_event: RawEvent) -> None:
     else:
         timestamp = datetime.now(tz=timezone.utc)
 
-    fact = FactPagos(
+    hashed = _hash_token(str(transaction_token))
+    fact = db.query(FactPagos).filter(FactPagos.token_transaccion == hashed).first()
+    if fact:
+        fact.estado_conciliacion_id = estado.id
+        fact.error_code_id = get_error_code_id(db, error_code)
+    else:
+        fact = FactPagos(
+            order_id=str(order_id) if order_id is not None else None,
+            subscription_id=str(subscription_id) if subscription_id is not None else None,
+            monto=amount,
+            token_transaccion=hashed,
+            payment_method=payment_method,
+            error_code_id=get_error_code_id(db, error_code),
+            timestamp_evento=timestamp,
+            estado_conciliacion_id=estado.id,
+        )
+        db.add(fact)
+    db.flush()
+    audit_status = status_name if status_name in _AUDIT_STATUSES else "esperando_revisión"
+    db.add(FactPaymentsEvent(
+        transaction_id=_to_uuid(payload.get("transaction_id")),
         order_id=str(order_id) if order_id is not None else None,
         subscription_id=str(subscription_id) if subscription_id is not None else None,
-        monto=amount,
-        token_transaccion=_hash_token(str(transaction_token)),
-        payment_method=payment_method,
-        error_code_id=get_error_code_id(db, error_code),
+        amount=float(amount),
+        token_transaccion=hashed,
+        codigo_error=error_code,
+        status=audit_status,
         timestamp_evento=timestamp,
-        estado_conciliacion_id=estado.id,
-    )
-
-    db.add(fact)
+    ))
     db.flush()
     logger.info("PAYMENT-ETL %s procesado: token=%s estado=%s", raw_event.event_type, transaction_token, status_name)

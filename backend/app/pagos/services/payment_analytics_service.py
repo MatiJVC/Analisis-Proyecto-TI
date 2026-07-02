@@ -15,19 +15,31 @@ _ATTEMPT = "esperando_revisión"
 def get_payment_kpis(db: Session, hours: int = 24) -> Dict[str, Any]:
     since: datetime = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
 
+    _RESOLVED = (_APPROVED, *_FAILURE_STATES)
+
+    # DISTINCT ON token_transaccion: agrupa por token de pago (consistente entre
+    # intento_pago y pago_exitoso del mismo cobro), toma el estado más reciente.
+    latest = (
+        db.query(
+            FactPaymentsEvent.token_transaccion,
+            FactPaymentsEvent.status,
+            FactPaymentsEvent.amount,
+        )
+        .filter(FactPaymentsEvent.timestamp_evento >= since)
+        .distinct(FactPaymentsEvent.token_transaccion)
+        .order_by(
+            FactPaymentsEvent.token_transaccion,
+            FactPaymentsEvent.timestamp_evento.desc(),
+        )
+        .subquery()
+    )
+
     row = db.query(
-        func.count(case((FactPaymentsEvent.status == _ATTEMPT, 1))).label("total_transactions"),
-        func.count(case(
-            (FactPaymentsEvent.status.in_(_FAILURE_STATES), 1)
-        )).label("failed_payments"),
-        func.coalesce(
-            func.sum(case((FactPaymentsEvent.status == _APPROVED, FactPaymentsEvent.amount))),
-            0,
-        ).label("revenue"),
-        func.count(case((FactPaymentsEvent.status == _APPROVED, 1))).label("approved_count"),
-    ).filter(
-        FactPaymentsEvent.timestamp_evento >= since
-    ).one()
+        func.count(case((latest.c.status.in_(_RESOLVED), 1))).label("total_transactions"),
+        func.count(case((latest.c.status.in_(_FAILURE_STATES), 1))).label("failed_payments"),
+        func.coalesce(func.sum(case((latest.c.status == _APPROVED, latest.c.amount))), 0).label("revenue"),
+        func.count(case((latest.c.status == _APPROVED, 1))).label("approved_count"),
+    ).select_from(latest).one()
 
     total_transactions: int = int(row.total_transactions or 0)
     failed_payments: int    = int(row.failed_payments or 0)

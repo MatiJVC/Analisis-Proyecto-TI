@@ -61,8 +61,9 @@ def confirm_payment(db: Session, token: str, confirmation: dict) -> FactPagos:
         fact = (
             db.query(FactPagos)
             .filter(FactPagos.token_transaccion == _hash_token(token))
+            .order_by(FactPagos.timestamp_evento.desc())
             .with_for_update()
-            .one_or_none()
+            .first()
         )
 
         if not fact:
