@@ -63,17 +63,22 @@ def get_payment_kpis(db: Session, hours: int = 24) -> Dict[str, Any]:
 
 
 def get_payment_timeline(db: Session, hours: int = 24) -> List[Dict[str, Any]]:
-    now_hour: datetime = datetime.now(tz=timezone.utc).replace(
-        minute=0, second=0, microsecond=0
-    )
-    since: datetime = now_hour - timedelta(hours=hours - 1)
+    # Redondear al bloque de 30 min actual
+    now = datetime.now(tz=timezone.utc)
+    half = 0 if now.minute < 30 else 30
+    now_slot: datetime = now.replace(minute=half, second=0, microsecond=0)
 
-    # ── alias reutilizado en SELECT, GROUP BY y ORDER BY ──────────────────
-    hour_trunc = func.date_trunc("hour", FactPaymentsEvent.timestamp_evento).label("hour")
+    slots = hours * 2  # 48 bloques de 30 min para 24h
+    since: datetime = now_slot - timedelta(minutes=30 * (slots - 1))
+
+    # Truncar al bloque de 30 min: floor(epoch / 1800) * 1800
+    half_trunc = func.to_timestamp(
+        func.floor(func.extract("epoch", FactPaymentsEvent.timestamp_evento) / 1800) * 1800
+    ).label("slot")
 
     rows = (
         db.query(
-            hour_trunc,
+            half_trunc,
             func.count(
                 case((FactPaymentsEvent.status == _APPROVED, 1))
             ).label("successful"),
@@ -91,26 +96,26 @@ def get_payment_timeline(db: Session, hours: int = 24) -> List[Dict[str, Any]]:
             FactPaymentsEvent.timestamp_evento >= since,
             FactPaymentsEvent.status != _ATTEMPT,
         )
-        .group_by(hour_trunc)
-        .order_by(hour_trunc)
+        .group_by(half_trunc)
+        .order_by(half_trunc)
         .all()
     )
 
-    db_by_hour: Dict[datetime, Dict] = {}
+    db_by_slot: Dict[datetime, Dict] = {}
     for row in rows:
-        hour_key: datetime = row.hour
-        if hour_key.tzinfo is None:
-            hour_key = hour_key.replace(tzinfo=timezone.utc)
-        db_by_hour[hour_key] = {
+        slot_key: datetime = row.slot
+        if slot_key.tzinfo is None:
+            slot_key = slot_key.replace(tzinfo=timezone.utc)
+        db_by_slot[slot_key] = {
             "successful": int(row.successful),
             "failed":     int(row.failed),
             "amount":     float(row.amount),
         }
 
     timeline: List[Dict[str, Any]] = []
-    for i in range(hours):
-        slot: datetime = since + timedelta(hours=i)
-        values = db_by_hour.get(slot, {"successful": 0, "failed": 0, "amount": 0.0})
+    for i in range(slots):
+        slot: datetime = since + timedelta(minutes=30 * i)
+        values = db_by_slot.get(slot, {"successful": 0, "failed": 0, "amount": 0.0})
         timeline.append({
             "date":       slot.strftime("%H:%M"),
             "successful": values["successful"],
