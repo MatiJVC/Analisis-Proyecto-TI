@@ -4,11 +4,27 @@ KPIs para cálculos analíticos del dominio Orders.
 Contiene funciones para calcular KPIs desde fact_orders.
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date, Integer
+from sqlalchemy import func, cast, Date, Integer, or_
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Tuple, Optional
 
 from app.models import FactOrder
+
+
+def _payment_success_filter():
+    """Compatibilidad entre datos nuevos (payment_success) y legados (status='paid')."""
+    return or_(
+        FactOrder.payment_success == True,
+        FactOrder.status == "paid",
+    )
+
+
+def _payment_attempted_filter():
+    """Intentos de pago válidos: éxito o fallo explícito."""
+    return or_(
+        _payment_success_filter(),
+        FactOrder.status == "payment_failed",
+    )
 
 
 # ================================================================
@@ -61,8 +77,8 @@ def get_delivery_rate(db: Session, days: Optional[int] = None) -> float:
 def get_payment_failure_rate(db: Session, days: Optional[int] = None) -> float:
     """
     Calcula tasa de pagos fallidos.
-    Fórmula: COUNT(status='payment_failed') / COUNT(status IN ('paid', 'payment_failed'))
-    Solo cuenta órdenes que tuvieron intento de pago (basado en status).
+    Fórmula: COUNT(status='payment_failed') / COUNT(intentos de pago válidos)
+    Compatibilidad: un éxito se reconoce por payment_success=True o status='paid'.
     
     Args:
         db: Sesión SQLAlchemy
@@ -70,9 +86,7 @@ def get_payment_failure_rate(db: Session, days: Optional[int] = None) -> float:
     """
     cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days) if days else None
     
-    payment_attempted_query = db.query(func.count(FactOrder.id)).filter(
-        FactOrder.status.in_(["paid", "payment_failed"])
-    )
+    payment_attempted_query = db.query(func.count(FactOrder.id)).filter(_payment_attempted_filter())
     failed_query = db.query(func.count(FactOrder.id)).filter(
         FactOrder.status == "payment_failed"
     )
@@ -93,8 +107,7 @@ def get_payment_failure_rate(db: Session, days: Optional[int] = None) -> float:
 def get_payment_success_rate(db: Session, days: Optional[int] = None) -> float:
     """
     Calcula tasa de pagos exitosos.
-    Fórmula: COUNT(status='paid') / COUNT(status IN ('paid', 'payment_failed'))
-    Solo cuenta órdenes que tuvieron intento de pago (basado en status).
+    Fórmula: COUNT(payment_success=True OR status='paid') / COUNT(intentos de pago válidos)
     
     Args:
         db: Sesión SQLAlchemy
@@ -102,12 +115,8 @@ def get_payment_success_rate(db: Session, days: Optional[int] = None) -> float:
     """
     cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days) if days else None
     
-    payment_attempted_query = db.query(func.count(FactOrder.id)).filter(
-        FactOrder.status.in_(["paid", "payment_failed"])
-    )
-    successful_query = db.query(func.count(FactOrder.id)).filter(
-        FactOrder.status == "paid"
-    )
+    payment_attempted_query = db.query(func.count(FactOrder.id)).filter(_payment_attempted_filter())
+    successful_query = db.query(func.count(FactOrder.id)).filter(_payment_success_filter())
     
     if cutoff_date:
         payment_attempted_query = payment_attempted_query.filter(FactOrder.created_at >= cutoff_date)
@@ -380,11 +389,9 @@ def get_all_kpis(db: Session, days: Optional[int] = None) -> Dict:
     q = db.query(
         func.count(FactOrder.id).label("total"),
         func.count(FactOrder.id).filter(FactOrder.delivery_completed == True).label("delivered"),
-        func.count(FactOrder.id).filter(FactOrder.status == "paid").label("paid"),
+        func.count(FactOrder.id).filter(_payment_success_filter()).label("paid"),
         func.count(FactOrder.id).filter(FactOrder.status == "payment_failed").label("failed"),
-        func.count(FactOrder.id).filter(
-            FactOrder.status.in_(["paid", "payment_failed"])
-        ).label("attempted"),
+        func.count(FactOrder.id).filter(_payment_attempted_filter()).label("attempted"),
         func.count(FactOrder.id).filter(FactOrder.stock_reserved == True).label("reserved"),
         func.count(FactOrder.id).filter(
             FactOrder.payment_success == True, FactOrder.delivery_completed == True

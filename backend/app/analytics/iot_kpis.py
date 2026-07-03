@@ -135,19 +135,19 @@ def get_anomalies_detected(db: Session, days: Optional[int] = None) -> int:
 def get_avg_processing_latency_ms(db: Session, days: Optional[int] = None) -> float:
     """
     Calcula latencia promedio de procesamiento en milisegundos.
-    Basado en diferencia entre created_at y last_data_received_at.
+    Basado en diferencia entre la ingestión del último evento y el cierre del ETL.
     """
     query = db.query(
         func.avg(
-            func.extract('epoch', FactIoT.last_data_received_at - FactIoT.created_at) * 1000
+            func.extract('epoch', FactIoT.updated_at - FactIoT.last_ingested_at) * 1000
         )
     ).filter(
-        FactIoT.last_data_received_at.isnot(None)
+        FactIoT.last_ingested_at.isnot(None)
     )
     
     if days:
         cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        query = query.filter(FactIoT.updated_at >= cutoff_date)
+        query = query.filter(FactIoT.last_ingested_at >= cutoff_date)
     
     result = query.scalar()
     return round(result, 1) if result else 0.0

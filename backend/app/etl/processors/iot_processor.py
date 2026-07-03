@@ -107,6 +107,9 @@ def process_iot_event(db: Session, raw_event: RawEvent) -> Optional[FactIoT]:
             )
             db.add(fact_iot)
             logger.info("IoT-ETL creando nuevo sensor %s", sensor_id)
+
+        # Latencia real: tiempo entre ingestión del evento y cierre del ETL.
+        fact_iot.last_ingested_at = raw_event.ingested_at
         
         # 4. Actualizar datos según event_type
         if raw_event.event_type == "telemetry_received":

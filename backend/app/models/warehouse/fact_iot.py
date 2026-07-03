@@ -22,6 +22,7 @@ class FactIoT(Base):
     battery_level = Column(Float, nullable=True)  # percentage 0-100
     signal_strength = Column(Float, nullable=True)  # RSSI or similar
     last_data_received_at = Column(DateTime(timezone=True), nullable=True)
+    last_ingested_at = Column(DateTime(timezone=True), nullable=True)
 
     # Sensor-specific data (flexible, varies by sensor_type)
     temperature = Column(Float, nullable=True)
