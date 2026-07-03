@@ -32,6 +32,7 @@ class SensorKPIs(BaseModel):
     low_battery_count: int = Field(..., description="Cantidad de sensores con batería baja")
     data_validity_rate: float = Field(..., ge=0.0, le=1.0, description="Porcentaje de datos válidos (0.0-1.0)")
     anomalies_detected: int = Field(..., description="Cantidad de anomalías detectadas")
+    avg_processing_latency_seconds: float = Field(..., ge=0.0, description="Latencia promedio de procesamiento (s)")
     avg_processing_latency_ms: float = Field(..., description="Latencia promedio de procesamiento (ms)")
 
     class Config:
@@ -45,6 +46,7 @@ class SensorKPIs(BaseModel):
                 "low_battery_count": 5,
                 "data_validity_rate": 0.98,
                 "anomalies_detected": 2,
+                "avg_processing_latency_seconds": 0.045,
                 "avg_processing_latency_ms": 45.2
             }
         }

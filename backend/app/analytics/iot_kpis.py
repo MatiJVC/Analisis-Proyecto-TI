@@ -132,25 +132,30 @@ def get_anomalies_detected(db: Session, days: Optional[int] = None) -> int:
     return query.scalar() or 0
 
 
-def get_avg_processing_latency_ms(db: Session, days: Optional[int] = None) -> float:
+def get_avg_processing_latency_seconds(db: Session, days: Optional[int] = None) -> float:
     """
-    Calcula latencia promedio de procesamiento en milisegundos.
-    Basado en diferencia entre la ingestión del último evento y el cierre del ETL.
+    Calcula la latencia promedio real en segundos.
+    Usa la diferencia entre last_data_received_at y updated_at.
     """
     query = db.query(
         func.avg(
-            func.extract('epoch', FactIoT.updated_at - FactIoT.last_ingested_at) * 1000
+            func.extract('epoch', FactIoT.updated_at - FactIoT.last_data_received_at)
         )
     ).filter(
-        FactIoT.last_ingested_at.isnot(None)
+        FactIoT.last_data_received_at.isnot(None)
     )
-    
+
     if days:
         cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        query = query.filter(FactIoT.last_ingested_at >= cutoff_date)
-    
+        query = query.filter(FactIoT.last_data_received_at >= cutoff_date)
+
     result = query.scalar()
-    return round(result, 1) if result else 0.0
+    return round(result, 3) if result else 0.0
+
+
+def get_avg_processing_latency_ms(db: Session, days: Optional[int] = None) -> float:
+    """Compatibilidad: devuelve la misma latencia expresada en milisegundos."""
+    return round(get_avg_processing_latency_seconds(db, days) * 1000, 1)
 
 
 # ================================================================
@@ -166,7 +171,7 @@ def get_all_iot_kpis(db: Session, days: Optional[int] = None) -> Dict[str, any]:
     - avg_battery_level, low_battery_count
     
     KPIs con filtro de días (usan parámetro days):
-    - data_validity_rate, anomalies_detected, avg_processing_latency_ms
+    - data_validity_rate, anomalies_detected, avg_processing_latency_seconds
     """
     
     # Real-time siempre (sin filtro de días)
@@ -180,6 +185,7 @@ def get_all_iot_kpis(db: Session, days: Optional[int] = None) -> Dict[str, any]:
     # Con filtro de días (usan el parámetro days si se proporciona)
     data_validity_rate = get_data_validity_rate(db, days)
     anomalies_detected = get_anomalies_detected(db, days)
+    avg_processing_latency_seconds = get_avg_processing_latency_seconds(db, days)
     avg_processing_latency_ms = get_avg_processing_latency_ms(db, days)
     
     return {
@@ -191,6 +197,7 @@ def get_all_iot_kpis(db: Session, days: Optional[int] = None) -> Dict[str, any]:
         "low_battery_count": low_battery_count,
         "data_validity_rate": data_validity_rate,
         "anomalies_detected": anomalies_detected,
+        "avg_processing_latency_seconds": avg_processing_latency_seconds,
         "avg_processing_latency_ms": avg_processing_latency_ms,
     }
 

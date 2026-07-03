@@ -168,6 +168,7 @@ export interface IoTKPIs {
   low_battery_count: number
   data_validity_rate: number
   anomalies_detected: number
+  avg_processing_latency_seconds: number
   avg_processing_latency_ms: number
 }
 

@@ -230,7 +230,7 @@ function IotContent() {
                   />
                   <KPICard
                     title="Latencia Promedio"
-                    value={`${kpis.avg_processing_latency_ms?.toFixed(0) ?? 0}ms`}
+                    value={`${kpis.avg_processing_latency_seconds?.toFixed(3) ?? 0}s`}
                     icon={<Clock className="h-5 w-5" />}
                   />
                 </>
@@ -247,7 +247,7 @@ function IotContent() {
             title="Distribución por Tipo de Sensor"
             description="Cantidad de sensores agrupados por tipo"
           >
-            <div className="h-[280px]">
+            <div className="h-70">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sensorsByTypeChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -283,7 +283,7 @@ function IotContent() {
                 Estado de Sensores ({sensorsList.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 max-h-[500px] overflow-y-auto">
+            <CardContent className="space-y-3 max-h-125 overflow-y-auto">
               {sensorsList.slice(0, 10).map((device: any) => (
                 <div
                   key={device.sensor_id}

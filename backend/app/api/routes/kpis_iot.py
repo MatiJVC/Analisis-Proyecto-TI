@@ -54,6 +54,7 @@ async def get_iot_kpis_endpoint(
             low_battery_count=kpis["low_battery_count"],
             data_validity_rate=kpis["data_validity_rate"],
             anomalies_detected=kpis["anomalies_detected"],
+            avg_processing_latency_seconds=kpis["avg_processing_latency_seconds"],
             avg_processing_latency_ms=kpis["avg_processing_latency_ms"],
         )
     except Exception:
