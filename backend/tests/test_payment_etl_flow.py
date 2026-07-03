@@ -112,7 +112,10 @@ PAGO_REEMBOLSADO_PAYLOAD = {
 
 @pytest.fixture
 def db() -> MagicMock:
-    return MagicMock()
+    mock = MagicMock()
+    # Simulate no existing FactPagos record (upsert takes the INSERT branch)
+    mock.query.return_value.filter.return_value.first.return_value = None
+    return mock
 
 
 # ─── Flujo 1: intento_pago → esperando_revisión ───────────────────────────────
