@@ -219,7 +219,7 @@ function IotContent() {
               ) : kpis ? (
                 <>
                   <KPICard
-                    title="Tasa de Validez de Datos"
+                    title="Tasa de Sensores sin Anomalías"
                     value={`${((kpis.data_validity_rate ?? 0) * 100).toFixed(1)}%`}
                     icon={<Activity className="h-5 w-5" />}
                   />

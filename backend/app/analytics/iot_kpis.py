@@ -94,25 +94,48 @@ def get_low_battery_count(db: Session, days: Optional[int] = None, threshold: in
     return query.scalar() or 0
 
 
+def _get_latest_iot_rows(db: Session, days: Optional[int] = None) -> List[Dict[str, any]]:
+    """Obtiene la última fila conocida por sensor, ordenada por recencia."""
+    query = db.query(
+        FactIoT.sensor_id,
+        FactIoT.has_anomaly,
+        FactIoT.updated_at,
+        FactIoT.id,
+    )
+
+    if days:
+        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
+        query = query.filter(FactIoT.updated_at >= cutoff_date)
+
+    rows = query.order_by(
+        FactIoT.sensor_id,
+        FactIoT.updated_at.desc(),
+        FactIoT.id.desc(),
+    ).all()
+
+    latest_by_sensor = {}
+    for sensor_id, has_anomaly, updated_at, row_id in rows:
+        if sensor_id not in latest_by_sensor:
+            latest_by_sensor[sensor_id] = {
+                "sensor_id": sensor_id,
+                "has_anomaly": bool(has_anomaly),
+                "updated_at": updated_at,
+                "id": row_id,
+            }
+
+    return list(latest_by_sensor.values())
+
+
 def get_data_validity_rate(db: Session, days: Optional[int] = None) -> float:
     """
-    Calcula porcentaje de datos válidos (sin anomalías).
-    Fórmula: COUNT(has_anomaly=FALSE) / COUNT(DISTINCT sensor_id)
+    Calcula porcentaje de datos válidos usando el último estado por sensor.
+    Fórmula: COUNT(último has_anomaly=FALSE) / COUNT(DISTINCT sensor_id)
     
     Rango: 0.0 a 1.0
     """
-    total_query = db.query(func.count(func.distinct(FactIoT.sensor_id)))
-    valid_query = db.query(func.count(func.distinct(FactIoT.sensor_id))).filter(
-        FactIoT.has_anomaly == False
-    )
-    
-    if days:
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        total_query = total_query.filter(FactIoT.updated_at >= cutoff_date)
-        valid_query = valid_query.filter(FactIoT.updated_at >= cutoff_date)
-    
-    total = total_query.scalar() or 0
-    valid = valid_query.scalar() or 0
+    latest_rows = _get_latest_iot_rows(db, days)
+    total = len(latest_rows)
+    valid = sum(1 for row in latest_rows if not row["has_anomaly"])
     
     if total == 0:
         return 0.0
@@ -121,15 +144,9 @@ def get_data_validity_rate(db: Session, days: Optional[int] = None) -> float:
 
 
 def get_anomalies_detected(db: Session, days: Optional[int] = None) -> int:
-    """Obtiene cantidad de sensores con anomalías detectadas."""
-    query = db.query(func.count(func.distinct(FactIoT.sensor_id))).filter(
-        FactIoT.has_anomaly == True
-    )
-    if days:
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        query = query.filter(FactIoT.updated_at >= cutoff_date)
-    
-    return query.scalar() or 0
+    """Obtiene cantidad de sensores con anomalías en su último estado."""
+    latest_rows = _get_latest_iot_rows(db, days)
+    return sum(1 for row in latest_rows if row["has_anomaly"])
 
 
 def get_avg_processing_latency_seconds(db: Session, days: Optional[int] = None) -> float:

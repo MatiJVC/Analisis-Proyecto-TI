@@ -121,6 +121,8 @@ def process_iot_event(db: Session, raw_event: RawEvent) -> Optional[FactIoT]:
             fact_iot.signal_strength = signal_strength
             fact_iot.connection_status = connection_status or "connected"
             fact_iot.is_online = True
+            fact_iot.low_battery_alert = battery is not None and battery < 20
+            fact_iot.has_anomaly = fact_iot.low_battery_alert
             fact_iot.last_data_received_at = event_timestamp
             
         elif raw_event.event_type == "sensor_offline":
