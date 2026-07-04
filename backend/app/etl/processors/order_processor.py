@@ -71,6 +71,10 @@ def process_order_event(db: Session, raw_event: RawEvent) -> Optional[FactOrder]
         if existing:
             # Actualizar registro existente
             fact_order = existing
+            if raw_event.event_type == "pedido_creado":
+                fact_order.sales_channel = sales_channel
+                fact_order.total_amount = total_amount
+                fact_order.total_items = total_items
             logger.info("ORDER-ETL actualizando orden %s", order_id)
         else:
             # Crear nuevo registro

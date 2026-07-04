@@ -63,7 +63,7 @@ class TestCrearNuevaOrden:
     def test_customer_id_almacenado(self, db_session: Session):
         process_order_event(db_session, _raw("pedido_creado", BASE))
         order = db_session.query(FactOrder).filter(FactOrder.order_id == 1001).first()
-        assert order.customer_id == 501
+        assert order.customer_id == "501"
 
     def test_total_amount_almacenado(self, db_session: Session):
         process_order_event(db_session, _raw("pedido_creado", BASE))
@@ -122,6 +122,26 @@ class TestActualizarOrdenExistente:
         process_order_event(db_session, _raw("pedido_pagado", BASE))
         count = db_session.query(FactOrder).filter(FactOrder.order_id == 1001).count()
         assert count == 1
+
+    def test_pedido_creado_despues_de_pago_actualiza_canal_y_montos(self, db_session: Session):
+        # Evento de pago sin detalles de la orden
+        payload_pago = {"order_id": 1001, "customer_id": 501}
+        process_order_event(db_session, _raw("pedido_pagado", payload_pago))
+        
+        # Debe haberse creado la orden con valores por defecto
+        order_pre = db_session.query(FactOrder).filter(FactOrder.order_id == 1001).first()
+        assert order_pre.sales_channel == "unknown"
+        assert order_pre.total_amount == 0.0
+        assert order_pre.total_items == 0
+        
+        # Llega el pedido_creado después
+        process_order_event(db_session, _raw("pedido_creado", BASE))
+        
+        # Deben haberse actualizado los campos
+        order_post = db_session.query(FactOrder).filter(FactOrder.order_id == 1001).first()
+        assert order_post.sales_channel == "web"
+        assert order_post.total_amount == 49990.0
+        assert order_post.total_items == 2
 
 
 # ─── Entrega y cálculo de processing_time ────────────────────────────────────

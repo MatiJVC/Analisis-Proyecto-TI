@@ -58,6 +58,27 @@ import { RoleGate } from "@/components/auth/role-gate";
 type AllowedDays = 1 | 7 | 30 | 90 | 180 | 365;
 type SensorStatusFilter = "all" | "active" | "inactive";
 
+const sensorTypeTranslations: Record<string, string> = {
+  glucometer: "Glucómetro",
+  thermometer: "Termómetro",
+  pulse_oximeter: "Oxímetro de pulso",
+  sphygmomanometer: "Esfigmomanómetro",
+};
+
+const translateSensorType = (type: string): string => {
+  if (!type) return "";
+  return sensorTypeTranslations[type.toLowerCase()] || type;
+};
+
+const mapSearchQueryToEnglish = (query: string): string => {
+  const q = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // remove accents
+  if (q.includes("glucometro")) return "glucometer";
+  if (q.includes("termometro")) return "thermometer";
+  if (q.includes("oximetro")) return "pulse_oximeter";
+  if (q.includes("esfigmomanometro") || q.includes("tensiometro")) return "sphygmomanometer";
+  return query;
+};
+
 function IotContent() {
   const [selectedDays, setSelectedDays] = useState<AllowedDays>(30);
   const [selectedStatus, setSelectedStatus] = useState<SensorStatusFilter>("all");
@@ -97,7 +118,8 @@ function IotContent() {
 
   const applySearch = () => {
     setCurrentPage(1);
-    setSearchQuery(searchInput.trim());
+    const mappedQuery = mapSearchQueryToEnglish(searchInput.trim());
+    setSearchQuery(mappedQuery);
   };
 
   const getStatusColor = (status: string | boolean) => {
@@ -124,7 +146,10 @@ function IotContent() {
 
   // Preparar datos para gráfico de sensores por tipo
   const sensorsList = devices?.sensors || [];
-  const sensorsByTypeChartData = sensorsByType?.sensor_types ?? [];
+  const sensorsByTypeChartData = (sensorsByType?.sensor_types ?? []).map((item) => ({
+    ...item,
+    sensor_type: translateSensorType(item.sensor_type),
+  }));
   const totalSensors = devices?.total_sensors ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalSensors / pageSize));
   const canGoPrevious = currentPage > 1;
@@ -380,7 +405,7 @@ function IotContent() {
                             {device.sensor_id}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {device.sensor_type}
+                            {translateSensorType(device.sensor_type)}
                           </div>
                         </div>
                       </div>

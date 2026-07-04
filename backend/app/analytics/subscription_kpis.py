@@ -97,7 +97,7 @@ def get_subscription_stats(db: Session, days: Optional[int] = None) -> dict:
     total = base_query.count()
     
     active = (
-        base_query.filter(FactSubscription.status == "active")
+        base_query.filter(func.lower(FactSubscription.status) == "active")
         .count()
     )
     
@@ -137,7 +137,7 @@ def get_subscription_stats(db: Session, days: Optional[int] = None) -> dict:
     
     # Lifetime Value: Tiempo promedio de suscripción en meses (cálculo en Python)
     subs = db.query(FactSubscription.start_date, FactSubscription.end_date).filter(
-        (FactSubscription.end_date.isnot(None)) | (FactSubscription.status == "active")
+        (FactSubscription.end_date.isnot(None)) | (func.lower(FactSubscription.status) == "active")
     ).all()
     
     if subs:
@@ -312,7 +312,7 @@ def get_retention_rate(db: Session, period_days: int) -> float:
             FactSubscription.end_date.is_(None),
             FactSubscription.end_date > start_of_period
         ),
-        FactSubscription.status == "active"
+        func.lower(FactSubscription.status) == "active"
     ).scalar() or 0
     
     retention_rate = (retained / active_at_period) * 100

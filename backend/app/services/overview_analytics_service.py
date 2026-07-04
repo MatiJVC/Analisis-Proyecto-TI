@@ -48,7 +48,7 @@ def get_global_kpis(db: Session) -> Dict[str, Any]:
 
     active_subs = (
         db.query(func.count(FactSubscription.id))
-        .filter(FactSubscription.status == "active")
+        .filter(func.lower(FactSubscription.status) == "active")
         .scalar()
         or 0
     )
