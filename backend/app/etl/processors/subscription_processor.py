@@ -11,13 +11,10 @@ class PayloadValidationError(Exception):
 
 
 def _validate_payload(payload: Dict[str, Any]) -> None:
-    required_fields = ["contract_id", "user_id", "plan_id"]
-
-    for field in required_fields:
-        if field not in payload or payload[field] is None:
-            raise PayloadValidationError(
-                f"Campo requerido faltante: {field}"
-            )
+    if "contract_id" not in payload or payload["contract_id"] is None:
+        raise PayloadValidationError(
+            "Campo requerido faltante: contract_id"
+        )
 
 
 def _map_event_type_to_flags(event_type: str) -> Dict[str, bool]:
@@ -38,11 +35,10 @@ def _map_event_type_to_flags(event_type: str) -> Dict[str, bool]:
 def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[FactSubscription]:
 
     try:
-        _validate_payload(raw_event.payload)
+        payload = raw_event.payload or {}
+        _validate_payload(payload)
 
-        contract_id = str(raw_event.payload.get("contract_id"))
-        user_id = raw_event.payload.get("user_id")
-        plan_id = raw_event.payload.get("plan_id")
+        contract_id = str(payload.get("contract_id"))
 
         existing = db.query(FactSubscription).filter(
             FactSubscription.contract_id == contract_id
@@ -51,13 +47,20 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
         if existing:
             fact_sub = existing
         else:
-            start_date = raw_event.payload.get("start_date")
+            user_id = payload.get("user_id")
+            plan_id = payload.get("plan_id")
+            if user_id is None:
+                raise PayloadValidationError("Campo requerido faltante: user_id")
+            if plan_id is None:
+                raise PayloadValidationError("Campo requerido faltante: plan_id")
+
+            start_date = payload.get("start_date")
             if start_date and isinstance(start_date, str):
                 start_date = datetime.fromisoformat(start_date).date()
             else:
                 start_date = datetime.now(tz=timezone.utc).date()
 
-            status = raw_event.payload.get("status", "active")
+            status = payload.get("status", "active")
 
             fact_sub = FactSubscription(
                 contract_id=contract_id,

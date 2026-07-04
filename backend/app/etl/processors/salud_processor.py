@@ -145,7 +145,9 @@ def _calc_duracion_retraso(
     duracion_minutos = None
     retraso_minutos = None
     if fecha_inicio_real and fecha_fin_real:
-        duracion_minutos = int((fecha_fin_real - fecha_inicio_real).total_seconds() / 60)
+        t_fin = fecha_fin_real.replace(tzinfo=None) if fecha_fin_real.tzinfo else fecha_fin_real
+        t_inicio = fecha_inicio_real.replace(tzinfo=None) if fecha_inicio_real.tzinfo else fecha_inicio_real
+        duracion_minutos = int((t_fin - t_inicio).total_seconds() / 60)
     if hora_programada and fecha_inicio_real:
         try:
             hora_float = hora_programada.hour + hora_programada.minute / 60.0

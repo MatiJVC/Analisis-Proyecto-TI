@@ -111,7 +111,22 @@ def _run_etl(event_id: uuid.UUID, source: str) -> None:
         logger.info("ETL %s/%s OK — event_id=%s", source, raw_event.event_type, event_id)
     except Exception as exc:
         db.rollback()
-        logger.exception("ETL %s event_id=%s", source, event_id)
+        exc_name = exc.__class__.__name__
+        if "ValidationError" in exc_name or "ProcessingError" in exc_name:
+            try:
+                raw_event = db.query(RawEvent).filter(RawEvent.event_id == event_id).first()
+                if raw_event:
+                    raw_event.processed = True
+                    db.commit()
+                    logger.warning(
+                        "ETL %s event_id=%s descartado debido a error de validación permanente: %s (%s)",
+                        source, event_id, str(exc), exc_name
+                    )
+            except Exception as commit_exc:
+                db.rollback()
+                logger.exception("ETL %s event_id=%s: fallo al marcar como procesado tras error de validación", source, event_id)
+        else:
+            logger.exception("ETL %s event_id=%s", source, event_id)
     finally:
         db.close()
 

@@ -45,7 +45,9 @@ def db_with_fact():
     """DB mock que devuelve un FactPagos al hacer query por token."""
     db = MagicMock()
     fact = _mock_fact()
-    db.query.return_value.filter.return_value.with_for_update.return_value.one_or_none.return_value = fact
+    chain = db.query.return_value.filter.return_value.order_by.return_value.with_for_update.return_value
+    chain.first.return_value = fact
+    chain.one_or_none.return_value = fact
     return db, fact
 
 
@@ -157,7 +159,9 @@ class TestConfirmPaymentTransactionMismatch:
     @patch("app.pagos.services.payment_service.get_or_create_estado")
     def test_token_no_encontrado_lanza_valueerror(self, mock_estado_fn, mock_error_fn):
         db = MagicMock()
-        db.query.return_value.filter.return_value.with_for_update.return_value.one_or_none.return_value = None
+        chain = db.query.return_value.filter.return_value.order_by.return_value.with_for_update.return_value
+        chain.first.return_value = None
+        chain.one_or_none.return_value = None
 
         with pytest.raises(ValueError, match="No payment found"):
             confirm_payment(db, "token_inexistente", {"approved": True, "timestamp_evento": TIMESTAMP})

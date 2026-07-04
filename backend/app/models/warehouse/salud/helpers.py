@@ -328,7 +328,10 @@ class ReportHelper:
                 "tipo": a.tipo,
                 "prioridad": a.prioridad,
                 "mensaje": a.mensaje,
-                "tiempo_abierta": (datetime.now(tz=timezone.utc) - a.created_at).total_seconds() / 3600
+                "tiempo_abierta": (
+                    datetime.now(tz=timezone.utc) -
+                    (a.created_at if a.created_at.tzinfo else a.created_at.replace(tzinfo=timezone.utc))
+                ).total_seconds() / 3600
             }
             for a in alertas
         ]
