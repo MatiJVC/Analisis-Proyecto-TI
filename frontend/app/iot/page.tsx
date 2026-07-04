@@ -52,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 import { RoleGate } from "@/components/auth/role-gate";
 type AllowedDays = 1 | 7 | 30 | 90 | 180 | 365;
@@ -61,6 +62,7 @@ function IotContent() {
   const [selectedDays, setSelectedDays] = useState<AllowedDays>(30);
   const [selectedStatus, setSelectedStatus] = useState<SensorStatusFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
   const pageSize = 10;
 
   const filterDaysLabel: Record<AllowedDays, string> = {
@@ -82,6 +84,7 @@ function IotContent() {
   const { data: devices, isLoading: devicesLoading } = useIoTDevices(
     selectedDays,
     selectedStatus,
+    searchQuery,
     pageSize,
     (currentPage - 1) * pageSize,
   );
@@ -89,7 +92,7 @@ function IotContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedDays, selectedStatus]);
+  }, [selectedDays, selectedStatus, searchQuery]);
 
   const getStatusColor = (status: string | boolean) => {
     if (typeof status === "boolean") {
@@ -120,6 +123,23 @@ function IotContent() {
   const totalPages = Math.max(1, Math.ceil(totalSensors / pageSize));
   const canGoPrevious = currentPage > 1;
   const canGoNext = currentPage < totalPages;
+
+  const SensorTypeTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+
+    const item = payload[0].payload;
+
+    return (
+      <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md">
+        <p className="text-sm font-medium text-foreground">
+          {item.sensor_type}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Cantidad: {item.count}
+        </p>
+      </div>
+    );
+  };
 
   return (
       <div className="space-y-6">
@@ -267,19 +287,12 @@ function IotContent() {
                 <BarChart data={sensorsByTypeChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis
-                    dataKey="name"
+                    dataKey="sensor_type"
                     stroke="var(--muted-foreground)"
                     fontSize={12}
                   />
                   <YAxis stroke="var(--muted-foreground)" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                    }}
-                    labelStyle={{ color: "var(--foreground)" }}
-                  />
+                  <Tooltip content={<SensorTypeTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
                   <Bar dataKey="count" fill="var(--chart-1)" name="Cantidad" />
                 </BarChart>
               </ResponsiveContainer>
@@ -298,23 +311,33 @@ function IotContent() {
                   <Cpu className="h-4 w-4 text-primary" />
                   Estado de Sensores ({totalSensors})
                 </CardTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 bg-background border-border text-foreground hover:bg-muted whitespace-nowrap"
-                    >
-                      <span>Estado: {statusLabel[selectedStatus]}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem onClick={() => setSelectedStatus("all")}>Todos</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus("active")}>Activos</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus("inactive")}>Inactivos</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                  <div className="w-full md:w-72">
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Buscar por sensor, activo o tipo"
+                      className="bg-background"
+                    />
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 bg-background border-border text-foreground hover:bg-muted whitespace-nowrap"
+                      >
+                        <span>Estado: {statusLabel[selectedStatus]}</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onClick={() => setSelectedStatus("all")}>Todos</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSelectedStatus("active")}>Activos</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSelectedStatus("inactive")}>Inactivos</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

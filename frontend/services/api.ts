@@ -113,11 +113,12 @@ export const iotAPI = {
   getDevices: (
     days: number = 30,
     status: "all" | "active" | "inactive" = "all",
+    search: string = "",
     limit: number = 10,
     offset: number = 0,
   ) =>
     fetchAPI<SensorsStatusResponse>(
-      `/v1/kpis/iot/status?days=${days}&status=${status}&limit=${limit}&offset=${offset}`,
+      `/v1/kpis/iot/status?days=${days}&status=${status}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}&limit=${limit}&offset=${offset}`,
       mockData.iotDevices,
     ),
   getAlerts: (days: number = 30, limit: number = 50) =>

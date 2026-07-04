@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 from app.models import FactIoT, RawEvent
 
 
+def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 # ================================================================
 # FUNCIONES DE CÁLCULO DE KPIs BÁSICOS
 # ================================================================
@@ -145,7 +153,7 @@ def _get_latest_iot_rows(db: Session, days: Optional[int] = None) -> List[Dict[s
                 "location": location,
                 "has_anomaly": bool(has_anomaly),
                 "low_battery_alert": bool(low_battery_alert),
-                "updated_at": updated_at,
+                "updated_at": _to_utc(updated_at),
                 "id": row_id,
             }
 
@@ -255,9 +263,21 @@ def get_sensors_status(
     limit: int = 100,
     offset: int = 0,
     status: str = "all",
+    search: Optional[str] = None,
 ) -> Dict[str, any]:
     """Obtiene el último estado por sensor con paginación y filtro de estado."""
     latest_rows = _get_latest_iot_rows(db, days)
+
+    if search:
+        search_term = search.strip().lower()
+        if search_term:
+            latest_rows = [
+                row
+                for row in latest_rows
+                if search_term in (row["sensor_id"] or "").lower()
+                or search_term in (row["asset_id"] or "").lower()
+                or search_term in (row["sensor_type"] or "").lower()
+            ]
 
     if status == "active":
         latest_rows = [row for row in latest_rows if row["is_online"]]
@@ -279,7 +299,7 @@ def get_sensors_status(
                 "sensor_type": row["sensor_type"],
                 "is_online": row["is_online"],
                 "battery_level": row["battery_level"],
-                "last_reading_at": row["last_reading_at"],
+                "last_reading_at": _to_utc(row["last_reading_at"]),
                 "location": row["location"],
                 "has_anomaly": row["has_anomaly"],
                 "low_battery_alert": row["low_battery_alert"],
@@ -366,7 +386,7 @@ def get_iot_events(db: Session, days: Optional[int] = None, limit: int = 100) ->
             "event_id": row[0],
             "sensor_id": row[4].get("sensor_id") if row[4] else None,
             "event_type": row[2],
-            "timestamp": row[3],
+            "timestamp": _to_utc(row[3]),
             "severity": "critical" if row[2] in ["sensor_offline", "low_battery"] else "warning" if row[2] in ["out_of_range", "signal_lost"] else "info",
             "message": f"Evento: {row[2]}",
             "data": row[4],

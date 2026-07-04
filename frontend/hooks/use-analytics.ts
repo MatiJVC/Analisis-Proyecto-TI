@@ -75,12 +75,13 @@ export function useIoTKPIs(days: number = 30) {
 export function useIoTDevices(
   days: number = 30,
   status: "all" | "active" | "inactive" = "all",
+  search: string = "",
   limit: number = 10,
   offset: number = 0,
 ) {
   return useSWR(
-    `iot-devices-${days}-${status}-${limit}-${offset}`,
-    () => iotAPI.getDevices(days, status, limit, offset),
+    `iot-devices-${days}-${status}-${search}-${limit}-${offset}`,
+    () => iotAPI.getDevices(days, status, search, limit, offset),
     swrConfig,
   )
 }
