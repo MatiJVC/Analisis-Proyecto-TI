@@ -62,6 +62,7 @@ function IotContent() {
   const [selectedDays, setSelectedDays] = useState<AllowedDays>(30);
   const [selectedStatus, setSelectedStatus] = useState<SensorStatusFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const pageSize = 10;
 
@@ -94,6 +95,11 @@ function IotContent() {
     setCurrentPage(1);
   }, [selectedDays, selectedStatus, searchQuery]);
 
+  const applySearch = () => {
+    setCurrentPage(1);
+    setSearchQuery(searchInput.trim());
+  };
+
   const getStatusColor = (status: string | boolean) => {
     if (typeof status === "boolean") {
       return status ? "text-success" : "text-destructive";
@@ -123,6 +129,7 @@ function IotContent() {
   const totalPages = Math.max(1, Math.ceil(totalSensors / pageSize));
   const canGoPrevious = currentPage > 1;
   const canGoNext = currentPage < totalPages;
+  const hasSensors = sensorsList.length > 0;
 
   const SensorTypeTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
@@ -314,12 +321,26 @@ function IotContent() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
                   <div className="w-full md:w-72">
                     <Input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applySearch();
+                        }
+                      }}
                       placeholder="Buscar por sensor, activo o tipo"
                       className="bg-background"
                     />
                   </div>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="whitespace-nowrap"
+                    onClick={applySearch}
+                  >
+                    Buscar
+                  </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -342,43 +363,54 @@ function IotContent() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3 max-h-125 overflow-y-auto">
-                {sensorsList.map((device) => (
-                <div
-                  key={device.sensor_id}
-                  className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
+                {hasSensors ? (
+                  sensorsList.map((device) => (
                     <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg bg-muted ${getStatusColor(device.is_online)}`}
+                      key={device.sensor_id}
+                      className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
                     >
-                      <Signal className="h-4 w-4" />
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg bg-muted ${getStatusColor(device.is_online)}`}
+                        >
+                          <Signal className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground text-sm truncate">
+                            {device.sensor_id}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {device.sensor_type}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {device.battery_level !== null && (
+                          <div
+                            className={`flex items-center gap-1 ${getBatteryColor(device.battery_level ?? 0)}`}
+                          >
+                            <Battery className="h-3 w-3" />
+                            <span className="text-xs font-medium">
+                              {device.battery_level?.toFixed(0)}%
+                            </span>
+                          </div>
+                        )}
+                        <StatusBadge
+                          status={device.is_online ? "online" : "offline"}
+                        />
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <div className="font-medium text-foreground text-sm truncate">
-                        {device.sensor_id}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {device.sensor_type}
-                      </div>
-                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+                    <p className="text-sm font-medium text-foreground">
+                      No hay sensores que coincidan con la búsqueda
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Prueba con otro texto, cambia el estado o limpia el filtro.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {device.battery_level !== null && (
-                      <div
-                        className={`flex items-center gap-1 ${getBatteryColor(device.battery_level ?? 0)}`}
-                      >
-                        <Battery className="h-3 w-3" />
-                        <span className="text-xs font-medium">
-                          {device.battery_level?.toFixed(0)}%
-                        </span>
-                      </div>
-                    )}
-                    <StatusBadge
-                      status={device.is_online ? "online" : "offline"}
-                    />
-                  </div>
-                </div>
-                ))}
+                )}
               </div>
 
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
