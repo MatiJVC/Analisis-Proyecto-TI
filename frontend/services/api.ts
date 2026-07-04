@@ -2,6 +2,7 @@
 import * as mockData from "./mock-data";
 import { getAccessToken } from "@/lib/keycloak";
 import type { DashboardMetricas, ReporteHistorico, DetalleReporteHisto } from "@/types/analytics";
+import type { SensorsByTypeResponse, SensorsStatusResponse } from "@/types/analytics";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(
   /\/+$/,
@@ -109,15 +110,26 @@ export const notificationsAPI = {
 export const iotAPI = {
   getKPIs: (days: number = 30) =>
     fetchAPI(`/v1/kpis/iot/kpis?days=${days}`, mockData.iotKPIs),
-  getDevices: (days: number = 30) =>
-    fetchAPI(`/v1/kpis/iot/status?days=${days}`, mockData.iotDevices),
+  getDevices: (
+    days: number = 30,
+    status: "all" | "active" | "inactive" = "all",
+    limit: number = 10,
+    offset: number = 0,
+  ) =>
+    fetchAPI<SensorsStatusResponse>(
+      `/v1/kpis/iot/status?days=${days}&status=${status}&limit=${limit}&offset=${offset}`,
+      mockData.iotDevices,
+    ),
   getAlerts: (days: number = 30, limit: number = 50) =>
     fetchAPI(
       `/v1/kpis/iot/events?days=${days}&limit=${limit}`,
       mockData.iotAlerts,
     ),
   getSensorsByType: (days: number = 30) =>
-    fetchAPI(`/v1/kpis/iot/by-type?days=${days}`, []),
+    fetchAPI<SensorsByTypeResponse>(`/v1/kpis/iot/by-type?days=${days}`, {
+      total_sensors: 0,
+      sensor_types: [],
+    }),
   getTimeline: (days: number = 30) =>
     fetchAPI(`/v1/kpis/iot/timeline?days=${days}`, []),
 };

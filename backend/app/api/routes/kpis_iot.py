@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -70,12 +70,13 @@ async def get_iot_kpis_endpoint(
 )
 async def get_iot_sensors_status(
     days: Optional[int] = Query(default=None, ge=1, le=365, description="Número de días (omitir para todos los datos)"),
+    status: Literal["all", "active", "inactive"] = Query(default="all", description="Filtro por estado del sensor"),
     limit: int = Query(default=100, ge=1, le=1000, description="Máximo de sensores a retornar"),
     offset: int = Query(default=0, ge=0, description="Número de sensores a omitir (paginación)"),
     db: Session = Depends(get_db),
 ) -> SensorsStatusResponse:
     try:
-        status_data = get_sensors_status(db, days=days, limit=limit, offset=offset)
+        status_data = get_sensors_status(db, days=days, limit=limit, offset=offset, status=status)
         sensors_list = [
             SensorStatus(
                 sensor_id=s["sensor_id"],
@@ -88,13 +89,12 @@ async def get_iot_sensors_status(
                 has_anomaly=s["has_anomaly"],
                 low_battery_alert=s["low_battery_alert"],
             )
-            for s in status_data
+            for s in status_data["sensors"]
         ]
-        online_count = sum(1 for s in sensors_list if s.is_online)
         return SensorsStatusResponse(
-            total_sensors=len(sensors_list),
-            online_count=online_count,
-            offline_count=len(sensors_list) - online_count,
+            total_sensors=status_data["total_sensors"],
+            online_count=status_data["online_count"],
+            offline_count=status_data["offline_count"],
             sensors=sensors_list,
         )
     except Exception:
@@ -113,7 +113,7 @@ async def get_iot_sensors_by_type(
     db: Session = Depends(get_db),
 ) -> SensorsByTypeResponse:
     try:
-        types_data = get_sensors_by_type(db)
+        types_data = get_sensors_by_type(db, days=days)
         types_list = [
             SensorTypeMetric(
                 sensor_type=t["sensor_type"],

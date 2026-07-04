@@ -98,7 +98,14 @@ def _get_latest_iot_rows(db: Session, days: Optional[int] = None) -> List[Dict[s
     """Obtiene la última fila conocida por sensor, ordenada por recencia."""
     query = db.query(
         FactIoT.sensor_id,
+        FactIoT.asset_id,
+        FactIoT.sensor_type,
+        FactIoT.is_online,
+        FactIoT.battery_level,
+        FactIoT.last_data_received_at,
+        FactIoT.location,
         FactIoT.has_anomaly,
+        FactIoT.low_battery_alert,
         FactIoT.updated_at,
         FactIoT.id,
     )
@@ -114,11 +121,30 @@ def _get_latest_iot_rows(db: Session, days: Optional[int] = None) -> List[Dict[s
     ).all()
 
     latest_by_sensor = {}
-    for sensor_id, has_anomaly, updated_at, row_id in rows:
+    for (
+        sensor_id,
+        asset_id,
+        sensor_type,
+        is_online,
+        battery_level,
+        last_data_received_at,
+        location,
+        has_anomaly,
+        low_battery_alert,
+        updated_at,
+        row_id,
+    ) in rows:
         if sensor_id not in latest_by_sensor:
             latest_by_sensor[sensor_id] = {
                 "sensor_id": sensor_id,
+                "asset_id": asset_id,
+                "sensor_type": sensor_type,
+                "is_online": is_online,
+                "battery_level": battery_level,
+                "last_reading_at": last_data_received_at,
+                "location": location,
                 "has_anomaly": bool(has_anomaly),
+                "low_battery_alert": bool(low_battery_alert),
                 "updated_at": updated_at,
                 "id": row_id,
             }
@@ -228,66 +254,81 @@ def get_sensors_status(
     days: Optional[int] = None,
     limit: int = 100,
     offset: int = 0,
-) -> List[Dict[str, any]]:
-    """Obtiene estado actual de todos los sensores."""
-    query = db.query(
-        FactIoT.sensor_id,
-        FactIoT.asset_id,
-        FactIoT.sensor_type,
-        FactIoT.is_online,
-        FactIoT.battery_level,
-        FactIoT.last_data_received_at,
-        FactIoT.location,
-        FactIoT.has_anomaly,
-        FactIoT.low_battery_alert,
-    ).distinct(FactIoT.sensor_id)
+    status: str = "all",
+) -> Dict[str, any]:
+    """Obtiene el último estado por sensor con paginación y filtro de estado."""
+    latest_rows = _get_latest_iot_rows(db, days)
 
-    if days:
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        query = query.filter(FactIoT.updated_at >= cutoff_date)
+    if status == "active":
+        latest_rows = [row for row in latest_rows if row["is_online"]]
+    elif status == "inactive":
+        latest_rows = [row for row in latest_rows if not row["is_online"]]
 
-    query = query.order_by(FactIoT.sensor_id, FactIoT.updated_at.desc())
-
-    results = query.offset(offset).limit(limit).all()
+    results = latest_rows[offset: offset + limit]
+    online_count = sum(1 for row in latest_rows if row["is_online"])
+    offline_count = len(latest_rows) - online_count
     
-    return [
-        {
-            "sensor_id": row[0],
-            "asset_id": row[1],
-            "sensor_type": row[2],
-            "is_online": row[3],
-            "battery_level": row[4],
-            "last_reading_at": row[5],
-            "location": row[6],
-            "has_anomaly": row[7],
-            "low_battery_alert": row[8],
-        }
-        for row in results
-    ]
+    return {
+        "total_sensors": len(latest_rows),
+        "online_count": online_count,
+        "offline_count": offline_count,
+        "sensors": [
+            {
+                "sensor_id": row["sensor_id"],
+                "asset_id": row["asset_id"],
+                "sensor_type": row["sensor_type"],
+                "is_online": row["is_online"],
+                "battery_level": row["battery_level"],
+                "last_reading_at": row["last_reading_at"],
+                "location": row["location"],
+                "has_anomaly": row["has_anomaly"],
+                "low_battery_alert": row["low_battery_alert"],
+            }
+            for row in results
+        ],
+    }
 
 
 def get_sensors_by_type(db: Session, days: Optional[int] = None) -> List[Dict[str, any]]:
-    """Obtiene distribución y estado de sensores por tipo."""
-    query = db.query(
-        FactIoT.sensor_type,
-        func.count(func.distinct(FactIoT.sensor_id)).label("count"),
-        func.sum(func.cast(FactIoT.is_online, Integer)).label("online_count"),
-        func.count(func.distinct(
-            case((FactIoT.is_online == False, FactIoT.sensor_id), else_=None)
-        )).label("offline_count"),
-        func.avg(FactIoT.battery_level).label("avg_battery"),
-        func.count(func.distinct(
-            case((FactIoT.has_anomaly == True, FactIoT.sensor_id), else_=None)
-        )).label("anomaly_count"),
-    ).filter(FactIoT.sensor_type.isnot(None))
-    
-    if days:
-        cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days)
-        query = query.filter(FactIoT.updated_at >= cutoff_date)
-    
-    query = query.group_by(FactIoT.sensor_type)
-    
-    results = query.all()
+    """Obtiene distribución y estado de sensores por tipo usando el último estado por sensor."""
+    latest_rows = _get_latest_iot_rows(db, days)
+    grouped = {}
+
+    for row in latest_rows:
+        sensor_type = row["sensor_type"]
+        if not sensor_type:
+            continue
+
+        bucket = grouped.setdefault(
+            sensor_type,
+            {
+                "count": 0,
+                "online_count": 0,
+                "offline_count": 0,
+                "battery_total": 0.0,
+                "battery_count": 0,
+                "anomaly_count": 0,
+            },
+        )
+        bucket["count"] += 1
+        bucket["online_count"] += 1 if row["is_online"] else 0
+        bucket["offline_count"] += 0 if row["is_online"] else 1
+        if row["battery_level"] is not None:
+            bucket["battery_total"] += float(row["battery_level"])
+            bucket["battery_count"] += 1
+        bucket["anomaly_count"] += 1 if row["has_anomaly"] else 0
+
+    results = [
+        (
+            sensor_type,
+            bucket["count"],
+            bucket["online_count"],
+            bucket["offline_count"],
+            (bucket["battery_total"] / bucket["battery_count"]) if bucket["battery_count"] else 0.0,
+            bucket["anomaly_count"],
+        )
+        for sensor_type, bucket in grouped.items()
+    ]
     
     return [
         {

@@ -11,6 +11,7 @@ import {
   SeverityBadge,
 } from "@/components/dashboard/status-badge";
 import { useIoTKPIs, useIoTDevices } from "@/hooks/use-analytics";
+import { useIoTSensorsByType } from "@/hooks/use-analytics";
 import {
   Cpu,
   Activity,
@@ -42,7 +43,7 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { IoTDevice, IoTAlert } from "@/types/analytics";
+import type { IoTAlert } from "@/types/analytics";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,12 +52,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RoleGate } from "@/components/auth/role-gate";
 type AllowedDays = 1 | 7 | 30 | 90 | 180 | 365;
+type SensorStatusFilter = "all" | "active" | "inactive";
 
 function IotContent() {
   const [selectedDays, setSelectedDays] = useState<AllowedDays>(30);
+  const [selectedStatus, setSelectedStatus] = useState<SensorStatusFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const filterDaysLabel: Record<AllowedDays, string> = {
     1: "Último día",
@@ -67,16 +72,33 @@ function IotContent() {
     365: "Últimos 365 días",
   };
 
-  const { data: kpis, isLoading: kpisLoading } = useIoTKPIs(selectedDays);
-  const { data: devices, isLoading: devicesLoading } = useIoTDevices(selectedDays);
+  const statusLabel: Record<SensorStatusFilter, string> = {
+    all: "Todos",
+    active: "Activos",
+    inactive: "Inactivos",
+  };
 
-  const getStatusColor = (status: string) => {
+  const { data: kpis, isLoading: kpisLoading } = useIoTKPIs(selectedDays);
+  const { data: devices, isLoading: devicesLoading } = useIoTDevices(
+    selectedDays,
+    selectedStatus,
+    pageSize,
+    (currentPage - 1) * pageSize,
+  );
+  const { data: sensorsByType, isLoading: typesLoading } = useIoTSensorsByType(selectedDays);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDays, selectedStatus]);
+
+  const getStatusColor = (status: string | boolean) => {
+    if (typeof status === "boolean") {
+      return status ? "text-success" : "text-destructive";
+    }
     switch (status) {
       case "online":
-      case true:
         return "text-success";
       case "offline":
-      case false:
         return "text-destructive";
       case "warning":
         return "text-warning";
@@ -93,18 +115,11 @@ function IotContent() {
 
   // Preparar datos para gráfico de sensores por tipo
   const sensorsList = devices?.sensors || [];
-  const sensorsByTypeChartData =
-    sensorsList.length > 0
-      ? Object.entries(
-          sensorsList.reduce(
-            (acc, device) => {
-              acc[device.sensor_type] = (acc[device.sensor_type] || 0) + 1;
-              return acc;
-            },
-            {} as Record<string, number>,
-          ),
-        ).map(([name, count]) => ({ name, count }))
-      : [];
+  const sensorsByTypeChartData = sensorsByType?.sensor_types ?? [];
+  const totalSensors = devices?.total_sensors ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalSensors / pageSize));
+  const canGoPrevious = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
 
   return (
       <div className="space-y-6">
@@ -240,7 +255,7 @@ function IotContent() {
         </Card>
 
         {/* Sensores por Tipo */}
-        {devicesLoading ? (
+        {typesLoading ? (
           <ChartCardSkeleton />
         ) : sensorsByTypeChartData.length > 0 ? (
           <ChartCard
@@ -277,14 +292,34 @@ function IotContent() {
           <ChartCardSkeleton />
         ) : sensorsList.length > 0 ? (
           <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-primary" />
-                Estado de Sensores ({sensorsList.length})
-              </CardTitle>
+            <CardHeader className="space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-primary" />
+                  Estado de Sensores ({totalSensors})
+                </CardTitle>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 bg-background border-border text-foreground hover:bg-muted whitespace-nowrap"
+                    >
+                      <span>Estado: {statusLabel[selectedStatus]}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onClick={() => setSelectedStatus("all")}>Todos</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus("active")}>Activos</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus("inactive")}>Inactivos</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-3 max-h-125 overflow-y-auto">
-              {sensorsList.slice(0, 10).map((device: any) => (
+            <CardContent className="space-y-4">
+              <div className="space-y-3 max-h-125 overflow-y-auto">
+                {sensorsList.map((device) => (
                 <div
                   key={device.sensor_id}
                   className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
@@ -307,7 +342,7 @@ function IotContent() {
                   <div className="flex items-center gap-2">
                     {device.battery_level !== null && (
                       <div
-                        className={`flex items-center gap-1 ${getBatteryColor(device.battery_level)}`}
+                        className={`flex items-center gap-1 ${getBatteryColor(device.battery_level ?? 0)}`}
                       >
                         <Battery className="h-3 w-3" />
                         <span className="text-xs font-medium">
@@ -320,7 +355,32 @@ function IotContent() {
                     />
                   </div>
                 </div>
-              ))}
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+                <p className="text-xs text-muted-foreground">
+                  Página {currentPage} de {totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoPrevious}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoNext}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         ) : null}
