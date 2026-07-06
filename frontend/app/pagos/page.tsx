@@ -263,8 +263,8 @@ export default function PaymentsPage() {
               <ChartCardSkeleton />
             ) : (
               <ChartCard
-                title="Transacciones por hora — últimas 24h"
-                description="Volumen de transacciones exitosas y rechazadas hora a hora"
+                title="Transacciones — últimas 24h (cada 30 min)"
+                description="Volumen de transacciones exitosas y rechazadas en bloques de 30 minutos"
               >
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -279,7 +279,8 @@ export default function PaymentsPage() {
                       <XAxis
                         dataKey="hora"
                         stroke="var(--muted-foreground)"
-                        fontSize={12}
+                        fontSize={11}
+                        interval={3}
                       />
                       <YAxis stroke="var(--muted-foreground)" fontSize={12} />
                       <Tooltip
