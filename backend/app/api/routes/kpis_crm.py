@@ -13,12 +13,17 @@ from app.schemas.crm_kpi_schema import (
     CRMTicketRow,
     CRMSLASummary,
     CRMExternalTicketResponse,
+    CRMDistributionResponse,
 )
 from app.services.crm_analytics_service import (
     get_crm_kpis,
     get_crm_timeline,
     get_recent_tickets,
     get_sla_summary,
+    get_tickets_by_channel,
+    get_tickets_by_priority,
+    get_tickets_by_source_project,
+    get_csat_distribution,
 )
 from app.services.crm_external_client import (
     get_ticket_estado,
@@ -94,6 +99,62 @@ async def get_crm_sla_endpoint(db: Session = Depends(get_db)) -> CRMSLASummary:
         return CRMSLASummary(**get_sla_summary(db))
     except Exception:
         logger.exception("Error SLA CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/channels",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de tickets por canal",
+)
+async def get_crm_channels_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_tickets_by_channel(db))
+    except Exception:
+        logger.exception("Error distribución por canal CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/priority",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de tickets por prioridad",
+)
+async def get_crm_priority_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_tickets_by_priority(db))
+    except Exception:
+        logger.exception("Error distribución por prioridad CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/source-projects",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de tickets por dominio de origen",
+)
+async def get_crm_source_projects_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_tickets_by_source_project(db))
+    except Exception:
+        logger.exception("Error distribución por dominio de origen CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/csat",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de puntajes CSAT (1-5)",
+)
+async def get_crm_csat_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_csat_distribution(db))
+    except Exception:
+        logger.exception("Error distribución CSAT CRM")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
 
 

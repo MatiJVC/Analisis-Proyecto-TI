@@ -462,6 +462,17 @@ export interface CRMSLASummary {
   slaComplianceRate: number
 }
 
+export interface CRMDistributionItem {
+  name: string
+  count: number
+  percentage: number
+}
+
+export interface CRMDistributionResponse {
+  total: number
+  items: CRMDistributionItem[]
+}
+
 // Espejo del TicketDto real del CRM externo (snake_case, no sigue la
 // convención camelCase del resto de la API — es un pass-through directo).
 export interface CRMExternalTicketResponse {

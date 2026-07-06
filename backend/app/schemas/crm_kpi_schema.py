@@ -44,6 +44,17 @@ class CRMSLASummary(BaseModel):
     slaComplianceRate: float = Field(..., description="Porcentaje de tickets resueltos dentro del SLA")
 
 
+class CRMDistributionItem(BaseModel):
+    name: str
+    count: int
+    percentage: float
+
+
+class CRMDistributionResponse(BaseModel):
+    total: int
+    items: List[CRMDistributionItem]
+
+
 class CRMExternalTicketResponse(BaseModel):
     """Espejo del TicketDto real expuesto por el CRM externo
     (GET /api/v1/analytics/estado-ticket/:id de pgti-proyecto-crm-backend).

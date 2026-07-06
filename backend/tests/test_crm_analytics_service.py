@@ -25,6 +25,14 @@ def _make_db_scalar(value):
     return db
 
 
+def _make_db_rows(rows):
+    """Mock que devuelve `rows` para .group_by(...).all(), con y sin .filter() previo."""
+    db = MagicMock()
+    db.query.return_value.filter.return_value.group_by.return_value.all.return_value = rows
+    db.query.return_value.group_by.return_value.all.return_value = rows
+    return db
+
+
 def _make_ticket(ticket_id="T-001", asunto="Test", estado="Abierto",
                  prioridad="Media", canal="email", source_project="proj",
                  opened_at=None, updated_at=None):
@@ -241,3 +249,68 @@ class TestGetSlaSummary:
         result = get_sla_summary(db)
         # No debe lanzar ZeroDivisionError
         assert result["slaComplianceRate"] == 0.0
+
+
+# ─── get_tickets_by_channel ────────────────────────────────────────────────────
+
+class TestGetTicketsByChannel:
+    def test_returns_distribution_with_percentages(self):
+        from app.services.crm_analytics_service import get_tickets_by_channel
+        db = _make_db_rows([("Chat", 6), ("Email", 4)])
+        result = get_tickets_by_channel(db)
+        assert result["total"] == 10
+        assert {"name": "Chat", "count": 6, "percentage": 60.0} in result["items"]
+        assert {"name": "Email", "count": 4, "percentage": 40.0} in result["items"]
+
+    def test_empty_returns_zero_total_no_division_error(self):
+        from app.services.crm_analytics_service import get_tickets_by_channel
+        db = _make_db_rows([])
+        result = get_tickets_by_channel(db)
+        assert result == {"total": 0, "items": []}
+
+
+# ─── get_tickets_by_priority ───────────────────────────────────────────────────
+
+class TestGetTicketsByPriority:
+    def test_returns_distribution(self):
+        from app.services.crm_analytics_service import get_tickets_by_priority
+        db = _make_db_rows([("Alta", 3), ("Media", 7)])
+        result = get_tickets_by_priority(db)
+        assert result["total"] == 10
+        names = {item["name"] for item in result["items"]}
+        assert names == {"Alta", "Media"}
+
+
+# ─── get_tickets_by_source_project ─────────────────────────────────────────────
+
+class TestGetTicketsBySourceProject:
+    def test_returns_distribution(self):
+        from app.services.crm_analytics_service import get_tickets_by_source_project
+        db = _make_db_rows([("orders", 5), ("pagos", 5)])
+        result = get_tickets_by_source_project(db)
+        assert result["total"] == 10
+        assert all(item["percentage"] == 50.0 for item in result["items"])
+
+    def test_empty_returns_zero_total(self):
+        from app.services.crm_analytics_service import get_tickets_by_source_project
+        db = _make_db_rows([])
+        result = get_tickets_by_source_project(db)
+        assert result == {"total": 0, "items": []}
+
+
+# ─── get_csat_distribution ──────────────────────────────────────────────────────
+
+class TestGetCsatDistribution:
+    def test_returns_distribution_with_string_names(self):
+        from app.services.crm_analytics_service import get_csat_distribution
+        db = _make_db_rows([(5, 8), (4, 2)])
+        result = get_csat_distribution(db)
+        assert result["total"] == 10
+        names = {item["name"] for item in result["items"]}
+        assert names == {"5", "4"}
+
+    def test_empty_returns_zero_total(self):
+        from app.services.crm_analytics_service import get_csat_distribution
+        db = _make_db_rows([])
+        result = get_csat_distribution(db)
+        assert result == {"total": 0, "items": []}

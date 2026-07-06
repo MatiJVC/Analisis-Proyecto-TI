@@ -5,7 +5,16 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { KPICard, KPICardSkeleton } from '@/components/dashboard/kpi-card'
 import { ChartCard, ChartCardSkeleton } from '@/components/dashboard/chart-card'
 import { StatusBadge } from '@/components/dashboard/status-badge'
-import { useCRMKPIs, useCRMTimeline, useCRMTickets, useCRMSLA } from '@/hooks/use-analytics'
+import {
+  useCRMKPIs,
+  useCRMTimeline,
+  useCRMTickets,
+  useCRMSLA,
+  useCRMChannels,
+  useCRMPriority,
+  useCRMSourceProjects,
+  useCRMCsat,
+} from '@/hooks/use-analytics'
 import { ApiError, crmAPI } from '@/services/api'
 import {
   Users,
@@ -22,16 +31,22 @@ import {
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import type { CRMTicketRow, CRMExternalTicketResponse } from '@/types/analytics'
+import type { CRMTicketRow, CRMExternalTicketResponse, CRMDistributionItem } from '@/types/analytics'
 
 // Claves capitalizadas — coinciden con el casing real que devuelve el
 // backend (Abierto/Progreso/Resuelto/Cerrado, Baja/Media/Alta/Crítica).
@@ -49,6 +64,24 @@ const STATE_LABEL: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
   Progreso: 'warning',
   Resuelto: 'success',
   Cerrado:  'neutral',
+}
+
+const PRIORITY_CHART_COLORS: Record<string, string> = {
+  Baja:    'var(--chart-3)',
+  Media:   'var(--chart-2)',
+  Alta:    'var(--chart-4)',
+  Crítica: 'var(--chart-5)',
+}
+
+const CHANNEL_CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+
+const chartTooltipProps = {
+  contentStyle: {
+    backgroundColor: 'var(--popover)',
+    border: '1px solid var(--border)',
+    borderRadius: '8px',
+  },
+  labelStyle: { color: 'var(--foreground)' },
 }
 
 function apiErrorMessage(error: unknown): string {
@@ -164,6 +197,10 @@ export default function CRMPage() {
   const { data: timeline, isLoading: timelineLoading, error: timelineError } = useCRMTimeline(14)
   const { data: tickets,  isLoading: ticketsLoading,  error: ticketsError }  = useCRMTickets()
   const { data: sla,      isLoading: slaLoading,      error: slaError }      = useCRMSLA()
+  const { data: channels,       isLoading: channelsLoading,       error: channelsError }       = useCRMChannels()
+  const { data: priority,       isLoading: priorityLoading,       error: priorityError }       = useCRMPriority()
+  const { data: sourceProjects, isLoading: sourceProjectsLoading, error: sourceProjectsError }  = useCRMSourceProjects()
+  const { data: csat,           isLoading: csatLoading,           error: csatError }            = useCRMCsat()
 
   const chartPoints = timeline?.points ?? []
 
@@ -281,6 +318,115 @@ export default function CRMPage() {
             </div>
           </ChartCard>
         )}
+
+        {/* Distribución de Tickets */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Por Canal */}
+          {channelsLoading ? (
+            <ChartCardSkeleton />
+          ) : channelsError ? (
+            <SectionError error={channelsError} />
+          ) : (
+            <ChartCard title="Tickets por Canal" description="Distribución según canal de contacto">
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={channels?.items ?? []}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="count"
+                      nameKey="name"
+                    >
+                      {(channels?.items ?? []).map((entry: CRMDistributionItem, index: number) => (
+                        <Cell key={`cell-${index}`} fill={CHANNEL_CHART_COLORS[index % CHANNEL_CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip {...chartTooltipProps} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
+          )}
+
+          {/* Por Prioridad */}
+          {priorityLoading ? (
+            <ChartCardSkeleton />
+          ) : priorityError ? (
+            <SectionError error={priorityError} />
+          ) : (
+            <ChartCard title="Tickets por Prioridad" description="Distribución según nivel de prioridad">
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={priority?.items ?? []}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="count"
+                      nameKey="name"
+                    >
+                      {(priority?.items ?? []).map((entry: CRMDistributionItem, index: number) => (
+                        <Cell key={`cell-${index}`} fill={PRIORITY_CHART_COLORS[entry.name] ?? 'var(--chart-1)'} />
+                      ))}
+                    </Pie>
+                    <Tooltip {...chartTooltipProps} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
+          )}
+
+          {/* Por Dominio de Origen */}
+          {sourceProjectsLoading ? (
+            <ChartCardSkeleton />
+          ) : sourceProjectsError ? (
+            <SectionError error={sourceProjectsError} />
+          ) : (
+            <ChartCard title="Tickets por Dominio de Origen" description="Qué módulo genera más carga de soporte">
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sourceProjects?.items ?? []} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis type="number" stroke="var(--muted-foreground)" fontSize={12} />
+                    <YAxis dataKey="name" type="category" stroke="var(--muted-foreground)" fontSize={12} width={90} />
+                    <Tooltip {...chartTooltipProps} />
+                    <Bar dataKey="count" fill="var(--chart-1)" radius={[0, 4, 4, 0]} name="Tickets" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
+          )}
+
+          {/* Distribución CSAT */}
+          {csatLoading ? (
+            <ChartCardSkeleton />
+          ) : csatError ? (
+            <SectionError error={csatError} />
+          ) : (
+            <ChartCard title="Distribución CSAT" description="Puntajes de satisfacción del cliente (1–5)">
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={csat?.items ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={12} />
+                    <Tooltip {...chartTooltipProps} />
+                    <Bar dataKey="count" fill="var(--chart-2)" radius={[4, 4, 0, 0]} name="Tickets" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
+          )}
+        </div>
 
         {/* Tickets + SLA */}
         <div className="grid gap-6 lg:grid-cols-3">

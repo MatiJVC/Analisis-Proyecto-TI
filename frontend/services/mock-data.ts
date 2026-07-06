@@ -36,6 +36,7 @@ import type {
   CRMTicketsResponse,
   CRMSLASummary,
   CRMExternalTicketResponse,
+  CRMDistributionResponse,
 } from "@/types/analytics";
 
 // Orders Mock Data
@@ -726,6 +727,48 @@ export const crmSLA: CRMSLASummary = {
   totalViolations:    8,
   criticalViolations: 2,
   slaComplianceRate:  94.5,
+}
+
+export const crmChannels: CRMDistributionResponse = {
+  total: 142,
+  items: [
+    { name: 'Chat', count: 58, percentage: 40.8 },
+    { name: 'Email', count: 42, percentage: 29.6 },
+    { name: 'Teléfono', count: 30, percentage: 21.1 },
+    { name: 'App', count: 12, percentage: 8.5 },
+  ],
+}
+
+export const crmPriority: CRMDistributionResponse = {
+  total: 142,
+  items: [
+    { name: 'Baja', count: 40, percentage: 28.2 },
+    { name: 'Media', count: 55, percentage: 38.7 },
+    { name: 'Alta', count: 35, percentage: 24.6 },
+    { name: 'Crítica', count: 12, percentage: 8.5 },
+  ],
+}
+
+export const crmSourceProjects: CRMDistributionResponse = {
+  total: 142,
+  items: [
+    { name: 'orders', count: 48, percentage: 33.8 },
+    { name: 'pagos', count: 34, percentage: 23.9 },
+    { name: 'subscriptions', count: 26, percentage: 18.3 },
+    { name: 'salud', count: 20, percentage: 14.1 },
+    { name: 'inventario', count: 14, percentage: 9.9 },
+  ],
+}
+
+export const crmCsatDistribution: CRMDistributionResponse = {
+  total: 89,
+  items: [
+    { name: '1', count: 3, percentage: 3.4 },
+    { name: '2', count: 5, percentage: 5.6 },
+    { name: '3', count: 12, percentage: 13.5 },
+    { name: '4', count: 31, percentage: 34.8 },
+    { name: '5', count: 38, percentage: 42.7 },
+  ],
 }
 
 export const crmTicketLive: CRMExternalTicketResponse = {

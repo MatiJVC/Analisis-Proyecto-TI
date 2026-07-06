@@ -182,6 +182,22 @@ export function useCRMSLA() {
   return useSWR('crm-sla', crmAPI.getSLA, swrConfig)
 }
 
+export function useCRMChannels() {
+  return useSWR('crm-channels', crmAPI.getChannels, swrConfig)
+}
+
+export function useCRMPriority() {
+  return useSWR('crm-priority', crmAPI.getPriority, swrConfig)
+}
+
+export function useCRMSourceProjects() {
+  return useSWR('crm-source-projects', crmAPI.getSourceProjects, swrConfig)
+}
+
+export function useCRMCsat() {
+  return useSWR('crm-csat', crmAPI.getCsatDistribution, swrConfig)
+}
+
 // Inventory hooks
 export function useInventoryKPIs() {
   return useSWR('inventory-kpis', inventoryAPI.getKPIs, swrConfig)

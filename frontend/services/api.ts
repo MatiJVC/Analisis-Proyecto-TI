@@ -231,6 +231,12 @@ export const crmAPI = {
   getSLA: () => fetchAPI("/v1/kpis/crm/sla", mockData.crmSLA),
   getTicketLive: (ticketId: string) =>
     fetchAPI(`/v1/kpis/crm/tickets/${ticketId}/live`, mockData.crmTicketLive),
+  getChannels: () => fetchAPI("/v1/kpis/crm/channels", mockData.crmChannels),
+  getPriority: () => fetchAPI("/v1/kpis/crm/priority", mockData.crmPriority),
+  getSourceProjects: () =>
+    fetchAPI("/v1/kpis/crm/source-projects", mockData.crmSourceProjects),
+  getCsatDistribution: () =>
+    fetchAPI("/v1/kpis/crm/csat", mockData.crmCsatDistribution),
 };
 
 // Inventory API
