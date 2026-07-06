@@ -48,6 +48,40 @@ def _parse_timestamp(timestamp_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def _get_or_create_notification(
+    db: Session, id_notificacion: str, payload: Dict[str, Any], event_type: str
+) -> FactNotifications:
+    """Busca o crea una notificación en fact_notifications con valores por defecto."""
+    fact = db.query(FactNotifications).filter(
+        FactNotifications.id_notificacion == id_notificacion
+    ).first()
+
+    if not fact:
+        if event_type == "fallback_activado":
+            canal_original = payload.get("canal_original") or "sms"
+            canal_usado = payload["canal_fallback"]
+        else:
+            canal_original = payload.get("canal_usado") or "sms"
+            canal_usado = payload.get("canal_usado") or "sms"
+
+        fact = FactNotifications(
+            id_notificacion=id_notificacion,
+            canal_original=canal_original,
+            canal_usado=canal_usado,
+            estado="enviado",
+            intentos=payload.get("intentos", 1),
+            fallback_activado=False,
+            created_at=datetime.now(tz=timezone.utc),
+        )
+        db.add(fact)
+        logger.info(
+            "Notifications-ETL creando notificación inexistente %s desde evento %s",
+            id_notificacion,
+            event_type,
+        )
+    return fact
+
+
 def process_notification_event(
     db: Session, raw_event: RawEvent
 ) -> Optional[FactNotifications]:
@@ -55,14 +89,14 @@ def process_notification_event(
     Procesa un evento de notificación y lo convierte en FactNotifications.
 
     Soporta eventos:
-    - notificacion_enviada:   Crea el registro con estado 'enviado'
+    - notificacion_enviada:   Crea o actualiza el registro con estado 'enviado'
     - notificacion_entregada: Actualiza estado a 'entregado' y registra fecha_entrega
     - fallback_activado:      Cambia canal, activa flag, incrementa intentos
     - notificacion_fallida:   Actualiza estado a 'fallido', incrementa intentos
     """
 
     try:
-        payload = raw_event.payload
+        payload = raw_event.payload or {}
 
         # 1. Validar payload mínimo
         _validate_notification_payload(payload, raw_event.event_type)
@@ -70,25 +104,11 @@ def process_notification_event(
         # 2. Extraer solo id_notificacion para el lookup
         id_notificacion = payload["id_notificacion"]
 
-        # 3. Buscar registro existente
-        fact = db.query(FactNotifications).filter(
-            FactNotifications.id_notificacion == id_notificacion
-        ).first()
+        # 3. Buscar o crear registro existente
+        fact = _get_or_create_notification(db, id_notificacion, payload, raw_event.event_type)
 
         # 4. Lógica por event_type
         if raw_event.event_type == "notificacion_enviada":
-            # Siempre crea un registro nuevo (es el primer evento del ciclo)
-            if fact:
-                # Si por alguna razón ya existe, actualizar en vez de duplicar
-                logger.info("Notifications-ETL notificación %s ya existe, actualizando", id_notificacion)
-            else:
-                fact = FactNotifications(
-                    id_notificacion=id_notificacion,
-                    created_at=datetime.now(tz=timezone.utc),
-                )
-                db.add(fact)
-                logger.info("Notifications-ETL creando notificación %s", id_notificacion)
-
             fact.id_api_key            = payload.get("id_api_key")
             fact.canal_usado         = payload.get("canal_usado")
             fact.canal_original      = payload.get("canal_usado")
@@ -102,28 +122,16 @@ def process_notification_event(
             fact.fallback_activado     = False
 
         elif raw_event.event_type == "notificacion_entregada":
-            if not fact:
-                raise NotificationPayloadValidationError(
-                    f"No existe notificación {id_notificacion} para marcar como entregada"
-                )
             fact.estado        = "entregado"
             fact.fecha_entrega = _parse_timestamp(payload.get("timestamp")) or datetime.now(tz=timezone.utc)
 
         elif raw_event.event_type == "fallback_activado":
-            if not fact:
-                raise NotificationPayloadValidationError(
-                    f"No existe notificación {id_notificacion} para activar fallback"
-                )
-            fact.canal_original   = fact.canal_usado or payload.get("canal_original")
+            fact.canal_original   = fact.canal_original or fact.canal_usado or payload.get("canal_original") or "sms"
             fact.canal_usado       = payload["canal_fallback"]
             fact.fallback_activado = True
             fact.intentos          = (fact.intentos or 1) + 1
 
         elif raw_event.event_type == "notificacion_fallida":
-            if not fact:
-                raise NotificationPayloadValidationError(
-                    f"No existe notificación {id_notificacion} para marcar como fallida"
-                )
             fact.estado   = "fallido"
             fact.intentos = payload.get("intentos") or (fact.intentos or 1) + 1
 
