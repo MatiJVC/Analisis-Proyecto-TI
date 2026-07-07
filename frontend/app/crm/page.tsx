@@ -196,10 +196,17 @@ function TicketLiveSearch() {
           <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-foreground">{result.ticket_id}</span>
-              <StatusBadge status={STATE_LABEL[result.estado] ?? 'neutral'} label={result.estado} />
-              {result.prioridad && (
-                <StatusBadge status={PRIORITY_STATUS[result.prioridad] ?? 'neutral'} label={result.prioridad} />
-              )}
+              {(() => {
+                // El CRM externo devuelve estado/prioridad en minúscula sin
+                // tilde; se normaliza al canónico para que el badge tenga el
+                // color y texto correctos (igual que en Tickets Recientes).
+                const estado = normalizeEstadoDisplay(result.estado)
+                return <StatusBadge status={STATE_LABEL[estado] ?? 'neutral'} label={estado} />
+              })()}
+              {result.prioridad && (() => {
+                const prioridad = normalizePrioridadDisplay(result.prioridad)
+                return <StatusBadge status={PRIORITY_STATUS[prioridad] ?? 'neutral'} label={prioridad} />
+              })()}
             </div>
             {result.asunto && <div className="text-sm text-foreground">{result.asunto}</div>}
             <div className="text-sm text-muted-foreground space-y-1">
