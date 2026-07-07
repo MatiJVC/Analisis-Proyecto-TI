@@ -173,8 +173,8 @@ export function useCRMSourceProjects() {
   return useSWR('crm-source-projects', crmAPI.getSourceProjects, swrConfig)
 }
 
-export function useCRMCsat() {
-  return useSWR('crm-csat', crmAPI.getCsatDistribution, swrConfig)
+export function useCRMCriticalByModule() {
+  return useSWR('crm-critical-by-module', crmAPI.getCriticalByModule, swrConfig)
 }
 
 // Inventory hooks

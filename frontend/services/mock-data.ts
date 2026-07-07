@@ -710,14 +710,14 @@ export const crmSourceProjects: CRMDistributionResponse = {
   ],
 }
 
-export const crmCsatDistribution: CRMDistributionResponse = {
-  total: 89,
+export const crmCriticalByModule: CRMDistributionResponse = {
+  total: 23,
   items: [
-    { name: '1', count: 3, percentage: 3.4 },
-    { name: '2', count: 5, percentage: 5.6 },
-    { name: '3', count: 12, percentage: 13.5 },
-    { name: '4', count: 31, percentage: 34.8 },
-    { name: '5', count: 38, percentage: 42.7 },
+    { name: 'Pagos', count: 8, percentage: 34.8 },
+    { name: 'Pedidos', count: 6, percentage: 26.1 },
+    { name: 'CRM', count: 4, percentage: 17.4 },
+    { name: 'Salud', count: 3, percentage: 13.0 },
+    { name: 'IoT', count: 2, percentage: 8.7 },
   ],
 }
 
