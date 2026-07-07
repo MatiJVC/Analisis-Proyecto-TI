@@ -24,6 +24,62 @@ _VALID_TRANSITIONS: Dict[str, tuple] = {
     "ticket.cerrado":  ("Resuelto",),
 }
 
+# ---------------------------------------------------------------------------
+# Normalización de casing — el CRM externo (pgti-proyecto-crm-backend) envía
+# estado/prioridad/canal en minúscula sin tilde, pero los CheckConstraint de
+# fact_tickets solo aceptan el español capitalizado con tilde. Se normaliza
+# aquí, en la frontera de ingesta, en vez de migrar el esquema/constraint.
+# ---------------------------------------------------------------------------
+
+_ESTADO_CANONICAL = {"Abierto", "Progreso", "Resuelto", "Cerrado"}
+_ESTADO_ALIASES = {
+    "abierto": "Abierto",
+    "progreso": "Progreso",
+    "resuelto": "Resuelto",
+    "cerrado": "Cerrado",
+}
+
+_PRIORIDAD_CANONICAL = {"Baja", "Media", "Alta", "Crítica"}
+_PRIORIDAD_ALIASES = {
+    "baja": "Baja",
+    "media": "Media",
+    "alta": "Alta",
+    "critica": "Crítica",
+    "crítica": "Crítica",
+}
+
+_CANAL_CANONICAL = {"Chat", "Email", "Teléfono", "App"}
+_CANAL_ALIASES = {
+    "chat": "Chat",
+    "email": "Email",
+    "telefono": "Teléfono",
+    "teléfono": "Teléfono",
+    "app": "App",
+}
+
+
+def _normalize(value: Any, canonical: set, aliases: Dict[str, str], field_name: str) -> str:
+    if value in canonical:
+        return value
+    normalized = aliases.get(str(value).strip().lower())
+    if normalized is None:
+        raise CRMProcessingError(f"Valor no reconocido para {field_name}: {value!r}")
+    return normalized
+
+
+def _normalize_estado(value: Any) -> str:
+    return _normalize(value, _ESTADO_CANONICAL, _ESTADO_ALIASES, "estado")
+
+
+def _normalize_prioridad(value: Any) -> str:
+    return _normalize(value, _PRIORIDAD_CANONICAL, _PRIORIDAD_ALIASES, "prioridad")
+
+
+def _normalize_canal(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return _normalize(value, _CANAL_CANONICAL, _CANAL_ALIASES, "canal")
+
 
 def _parse_dt(value: Any) -> Optional[datetime]:
     if value is None:
@@ -69,14 +125,18 @@ def _get_or_create_ticket(db: Session, ticket_id: str, payload: Dict[str, Any]) 
     return FactTicket(
         ticket_id=ticket_id,
         asunto=payload.get("asunto"),
-        estado=payload.get("estado", "Abierto"),
-        prioridad=payload.get("prioridad", "Media"),
-        canal=payload.get("canal"),
+        estado=_normalize_estado(payload.get("estado", "Abierto")),
+        prioridad=_normalize_prioridad(payload.get("prioridad", "Media")),
+        canal=_normalize_canal(payload.get("canal")),
         source_project=payload.get("source_project"),
         cliente_identidad_id=payload.get("cliente_identidad_id"),
         agente_id=payload.get("agente_id"),
         pedido_id_ref=payload.get("pedido_id_ref"),
         suscripcion_id_red=payload.get("suscripcion_id_red"),
+        cliente_id=payload.get("cliente_id"),
+        cliente_nombre=payload.get("cliente_nombre"),
+        pago_id_ref=payload.get("pago_id_ref"),
+        salud_ref=payload.get("salud_ref"),
         fecha_vencimiento_sla=_parse_dt(payload.get("fecha_vencimiento_sla")),
         opened_at=datetime.now(tz=timezone.utc),
     )
@@ -151,7 +211,7 @@ def _handle_ticket_escalado(db: Session, payload: Dict[str, Any]) -> FactTicket:
     ticket = _require_ticket(db, ticket_id)
     _validate_transition(ticket, "ticket.escalado")
     if payload.get("prioridad_al_escalar"):
-        ticket.prioridad = payload["prioridad_al_escalar"]
+        ticket.prioridad = _normalize_prioridad(payload["prioridad_al_escalar"])
     ticket.updated_at = datetime.now(tz=timezone.utc)
     db.add(ticket)
     db.flush()
@@ -171,9 +231,11 @@ def _handle_ticket_resuelto(db: Session, payload: Dict[str, Any]) -> FactTicket:
     if "within_sla" in payload:
         ticket.within_sla = bool(payload["within_sla"])
     if payload.get("prioridad"):
-        ticket.prioridad = payload["prioridad"]
+        ticket.prioridad = _normalize_prioridad(payload["prioridad"])
     if payload.get("agente_id"):
         ticket.agente_id = payload["agente_id"]
+    if payload.get("resolucion"):
+        ticket.resolucion = payload["resolucion"]
     ticket.updated_at = datetime.now(tz=timezone.utc)
     db.add(ticket)
     db.flush()
@@ -247,8 +309,8 @@ def _handle_ticket_sla_violado(db: Session, payload: Dict[str, Any]) -> FactSlaV
     violacion = FactSlaViolacion(
         ticket_id=ticket_id,
         cliente_identidad_id=payload.get("cliente_identidad_id"),
-        prioridad=payload.get("prioridad", "Media"),
-        canal=payload.get("canal"),
+        prioridad=_normalize_prioridad(payload.get("prioridad", "Media")),
+        canal=_normalize_canal(payload.get("canal")),
         source_project=payload.get("source_project"),
         sla_threshold_hours=float(payload.get("sla_threshold_hours", 8)),
         elapsed_hours=float(payload.get("elapsed_hours", 0)),

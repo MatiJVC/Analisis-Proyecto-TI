@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, CheckConstraint, DateTime, Float, Index, Integer, String
+from sqlalchemy import Boolean, Column, CheckConstraint, DateTime, Float, Index, Integer, String, Text
 
 from app.db.base import Base
 
@@ -22,6 +22,14 @@ class FactTicket(Base):
 
     pedido_id_ref = Column(String(100), nullable=True)
     suscripcion_id_red = Column(String(100), nullable=True)
+
+    # Campos del TicketDto real del CRM externo sin equivalente previo.
+    # Agregados vía backend/migrations/005_crm_ticket_new_fields.sql (no Alembic).
+    cliente_id = Column(Integer, nullable=True)
+    cliente_nombre = Column(String(255), nullable=True)
+    pago_id_ref = Column(String(100), nullable=True)
+    salud_ref = Column(String(100), nullable=True)
+    resolucion = Column(Text, nullable=True)
 
     fecha_vencimiento_sla = Column(DateTime(timezone=True), nullable=True)
     resolution_time_hours = Column(Float, nullable=True)

@@ -43,6 +43,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DISABLE_AUTH: "false"
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      CRM_EXTERNAL_BASE_URL: ${CRM_EXTERNAL_BASE_URL:-https://pgti-proyecto-crm-backend.vercel.app}
+      CRM_EXTERNAL_API_KEY: ${CRM_EXTERNAL_API_KEY:-}
+      CRM_EXTERNAL_TIMEOUT_SECONDS: ${CRM_EXTERNAL_TIMEOUT_SECONDS:-5.0}
     ports:
       - "8000:8000"
     depends_on:

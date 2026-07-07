@@ -12,12 +12,25 @@ from app.schemas.crm_kpi_schema import (
     CRMTicketsResponse,
     CRMTicketRow,
     CRMSLASummary,
+    CRMExternalTicketResponse,
+    CRMDistributionResponse,
 )
 from app.services.crm_analytics_service import (
     get_crm_kpis,
     get_crm_timeline,
     get_recent_tickets,
     get_sla_summary,
+    get_tickets_by_channel,
+    get_tickets_by_priority,
+    get_tickets_by_source_project,
+    get_critical_tickets_by_module,
+)
+from app.services.crm_external_client import (
+    get_ticket_estado,
+    CRMExternalNotFoundError,
+    CRMExternalAuthError,
+    CRMExternalTimeoutError,
+    CRMExternalError,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,4 +99,90 @@ async def get_crm_sla_endpoint(db: Session = Depends(get_db)) -> CRMSLASummary:
         return CRMSLASummary(**get_sla_summary(db))
     except Exception:
         logger.exception("Error SLA CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/channels",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de tickets por canal",
+)
+async def get_crm_channels_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_tickets_by_channel(db))
+    except Exception:
+        logger.exception("Error distribución por canal CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/priority",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de tickets por prioridad",
+)
+async def get_crm_priority_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_tickets_by_priority(db))
+    except Exception:
+        logger.exception("Error distribución por prioridad CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/source-projects",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Distribución de tickets por dominio de origen",
+)
+async def get_crm_source_projects_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_tickets_by_source_project(db))
+    except Exception:
+        logger.exception("Error distribución por dominio de origen CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/critical-by-module",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMDistributionResponse,
+    summary="Tickets críticos abiertos por módulo/grupo de origen",
+)
+async def get_crm_critical_by_module_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+    try:
+        return CRMDistributionResponse(**get_critical_tickets_by_module(db))
+    except Exception:
+        logger.exception("Error distribución de críticos por módulo CRM")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+
+
+@router.get(
+    "/crm/tickets/{ticket_id}/live",
+    dependencies=[Depends(require_any_role(CRM_ROLES))],
+    response_model=CRMExternalTicketResponse,
+    summary="Consulta en vivo del estado real de un ticket contra el CRM externo",
+    description=(
+        "Reconciliación puntual: consulta directamente al CRM externo "
+        "(pgti-proyecto-crm-backend) por el estado actual de un ticket, "
+        "sin depender del pipeline asíncrono de eventos ni de nuestra BD."
+    ),
+)
+async def get_crm_ticket_live_endpoint(ticket_id: str) -> CRMExternalTicketResponse:
+    try:
+        ticket = get_ticket_estado(ticket_id)
+        return CRMExternalTicketResponse(**ticket)
+    except CRMExternalNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except CRMExternalAuthError as exc:
+        logger.error("Error de configuración consultando CRM externo: %s", exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Error de configuración del servicio")
+    except CRMExternalTimeoutError as exc:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc))
+    except CRMExternalError as exc:
+        logger.warning("Error consultando CRM externo: %s", exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    except Exception:
+        logger.exception("Error inesperado consultando ticket en vivo del CRM")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")

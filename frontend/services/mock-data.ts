@@ -645,8 +645,8 @@ export const crmKPIs: CRMKPIs = {
   totalCustomers:         24856,
   openTickets:            142,
   avgResponseTimeMinutes: 18,
-  csatScore:              4.7,
-  messagesToday:          1245,
+  criticalTickets:        23,
+  ticketsCreatedToday:    31,
   resolutionRate:         94.5,
 }
 

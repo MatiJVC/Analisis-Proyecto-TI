@@ -390,3 +390,117 @@ class TestHandleTicketSlaViolado:
         # no debe lanzar excepción — casteo a float debe funcionar
         process_crm_event(db, raw)
         assert db.flush.called
+
+
+# ─── Normalización de casing (CRM externo envía minúscula sin tilde) ──────────
+
+class TestNormalizeEstado:
+    def test_passthrough_canonical(self):
+        from app.etl.processors.crm_processor import _normalize_estado
+        assert _normalize_estado("Progreso") == "Progreso"
+
+    def test_lowercase_external_casing(self):
+        from app.etl.processors.crm_processor import _normalize_estado
+        assert _normalize_estado("abierto") == "Abierto"
+        assert _normalize_estado("progreso") == "Progreso"
+        assert _normalize_estado("resuelto") == "Resuelto"
+        assert _normalize_estado("cerrado") == "Cerrado"
+
+    def test_unrecognized_value_raises(self):
+        from app.etl.processors.crm_processor import _normalize_estado, CRMProcessingError
+        with pytest.raises(CRMProcessingError, match="estado"):
+            _normalize_estado("pendiente")
+
+
+class TestNormalizePrioridad:
+    def test_passthrough_canonical(self):
+        from app.etl.processors.crm_processor import _normalize_prioridad
+        assert _normalize_prioridad("Crítica") == "Crítica"
+
+    def test_lowercase_sin_tilde(self):
+        from app.etl.processors.crm_processor import _normalize_prioridad
+        assert _normalize_prioridad("baja") == "Baja"
+        assert _normalize_prioridad("media") == "Media"
+        assert _normalize_prioridad("alta") == "Alta"
+        assert _normalize_prioridad("critica") == "Crítica"
+
+    def test_unrecognized_value_raises(self):
+        from app.etl.processors.crm_processor import _normalize_prioridad, CRMProcessingError
+        with pytest.raises(CRMProcessingError, match="prioridad"):
+            _normalize_prioridad("urgente")
+
+
+class TestNormalizeCanal:
+    def test_none_passthrough(self):
+        from app.etl.processors.crm_processor import _normalize_canal
+        assert _normalize_canal(None) is None
+
+    def test_lowercase_sin_tilde(self):
+        from app.etl.processors.crm_processor import _normalize_canal
+        assert _normalize_canal("chat") == "Chat"
+        assert _normalize_canal("email") == "Email"
+        assert _normalize_canal("telefono") == "Teléfono"
+        assert _normalize_canal("app") == "App"
+
+    def test_unrecognized_value_raises(self):
+        from app.etl.processors.crm_processor import _normalize_canal, CRMProcessingError
+        with pytest.raises(CRMProcessingError, match="canal"):
+            _normalize_canal("whatsapp")
+
+
+class TestTicketCreadoCasingReal:
+    """El CRM externo real envía estado/prioridad/canal en minúscula sin tilde."""
+
+    def test_ticket_creado_con_casing_externo_real(self):
+        from app.etl.processors.crm_processor import process_crm_event
+        db = _make_db(query_result=None)
+        payload = {
+            "ticket_id": "T-EXT-001",
+            "estado": "abierto",
+            "prioridad": "critica",
+            "canal": "telefono",
+        }
+        raw = _make_raw_event("ticket.creado", payload)
+        result = process_crm_event(db, raw)
+        assert result.estado == "Abierto"
+        assert result.prioridad == "Crítica"
+        assert result.canal == "Teléfono"
+
+    def test_ticket_creado_con_prioridad_no_reconocida_falla(self):
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        db = _make_db(query_result=None)
+        payload = {"ticket_id": "T-EXT-002", "prioridad": "urgente"}
+        raw = _make_raw_event("ticket.creado", payload)
+        with pytest.raises(CRMProcessingError, match="prioridad"):
+            process_crm_event(db, raw)
+
+
+class TestTicketCreadoNuevosCampos:
+    def test_popula_campos_del_ticket_dto_externo(self):
+        from app.etl.processors.crm_processor import process_crm_event
+        db = _make_db(query_result=None)
+        payload = {
+            "ticket_id": "T-NEW-001",
+            "cliente_id": 8823,
+            "cliente_nombre": "María Fernández",
+            "pago_id_ref": "PAY-2026-00981",
+            "salud_ref": "HC-2026-00021",
+        }
+        raw = _make_raw_event("ticket.creado", payload)
+        result = process_crm_event(db, raw)
+        assert result.cliente_id == 8823
+        assert result.cliente_nombre == "María Fernández"
+        assert result.pago_id_ref == "PAY-2026-00981"
+        assert result.salud_ref == "HC-2026-00021"
+
+
+class TestTicketResueltoResolucion:
+    def test_guarda_resolucion_cuando_viene_en_payload(self):
+        from app.etl.processors.crm_processor import process_crm_event
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Progreso"
+        db = _make_db(query_result=existing_ticket)
+        payload = {"ticket_id": "T-005d", "resolucion": "Se reembolsó el cargo duplicado"}
+        raw = _make_raw_event("ticket.resuelto", payload)
+        process_crm_event(db, raw)
+        assert existing_ticket.resolucion == "Se reembolsó el cargo duplicado"

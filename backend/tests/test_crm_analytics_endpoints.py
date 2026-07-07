@@ -24,8 +24,8 @@ _KPI_DATA = {
     "totalCustomers":        1250,
     "openTickets":           38,
     "avgResponseTimeMinutes": 14.5,
-    "csatScore":             4.2,
-    "messagesToday":         87,
+    "criticalTickets":       7,
+    "ticketsCreatedToday":   12,
     "resolutionRate":        91.3,
 }
 
@@ -69,7 +69,7 @@ class TestCRMKPIs:
         monkeypatch.setattr("app.api.routes.kpis_crm.get_crm_kpis", lambda db: _KPI_DATA)
         body = client.get("/v1/kpis/crm/kpis").json()
         for field in ("totalCustomers", "openTickets", "avgResponseTimeMinutes",
-                      "csatScore", "messagesToday", "resolutionRate"):
+                      "criticalTickets", "ticketsCreatedToday", "resolutionRate"):
             assert field in body, f"Campo faltante: {field}"
 
     def test_numeric_fields_are_numbers(self, client: TestClient, monkeypatch):
