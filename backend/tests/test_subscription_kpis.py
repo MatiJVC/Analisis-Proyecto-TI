@@ -139,10 +139,11 @@ class TestGetSubscriptionStats:
         # Mockear la query de subs para lifetime
         from datetime import date
         mock_subs = [
-            (date(2025, 1, 1), date(2026, 1, 1)),   # 365 días
-            (date(2025, 6, 1), None),                 # activa
+            (date(2025, 1, 1), date(2026, 1, 1), "cancelled"),   # 365 días
+            (date(2025, 6, 1), None, "active"),                 # activa
         ]
         db.query.return_value.filter.return_value.all.return_value = mock_subs
+
 
         # Mockear todos los scalars con un contador
         values = iter([100, 70, 30, 80, 20, 15, 5])
