@@ -9,8 +9,42 @@ from app.models.warehouse.fact_tickets import FactTicket
 from app.models.warehouse.dim_clientes_crm import DimClienteCRM
 from app.models.warehouse.fact_sla_violaciones import FactSlaViolacion
 
-_CRITICAL_PRIORITIES = ("Alta", "Crítica")
-_OPEN_STATES = ("Abierto", "Progreso")
+# La BD tiene casing mezclado en tickets históricos (minúscula sin tilde del CRM
+# externo) vs. los nuevos ya normalizados en la ingesta. Para que las
+# distribuciones no dupliquen categorías ("alta" vs "Alta"), se normaliza al
+# canónico en la capa de agregación. Passthrough para valores no reconocidos
+# (no lanza, a diferencia de crm_processor._normalize_*: un dato inesperado no
+# debe romper un gráfico). Constantes locales al módulo de analítica, sin
+# acoplar con las del processor.
+_PRIORIDAD_CANON = {
+    "baja": "Baja", "media": "Media", "alta": "Alta",
+    "critica": "Crítica", "crítica": "Crítica",
+}
+_CANAL_CANON = {
+    "chat": "Chat", "email": "Email",
+    "telefono": "Teléfono", "teléfono": "Teléfono", "app": "App",
+}
+# Formas en minúscula para filtros SQL case-insensitive (vía func.lower),
+# de modo que los conteos incluyan también los tickets históricos en minúscula.
+_CRITICAL_PRIORITIES_LOWER = ("alta", "crítica", "critica")
+_OPEN_STATES_LOWER = ("abierto", "progreso")
+_CLOSED_STATE_LOWER = "cerrado"
+
+
+def _canon(value: Optional[str], mapping: Dict[str, str]) -> Optional[str]:
+    if value is None:
+        return None
+    return mapping.get(str(value).strip().lower(), value)
+
+
+def _merge_distribution(rows: List[Any], mapping: Dict[str, str]) -> Dict[str, Any]:
+    """Agrupa `rows` [(name, count)] fusionando por forma canónica (casing)."""
+    merged: Dict[str, int] = {}
+    for name, count in rows:
+        key = _canon(name, mapping)
+        merged[key] = merged.get(key, 0) + count
+    total = sum(merged.values())
+    return _distribution(list(merged.items()), total)
 
 
 def get_crm_kpis(db: Session) -> Dict[str, Any]:
@@ -20,7 +54,7 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
 
     open_tickets = (
         db.query(func.count(FactTicket.id))
-        .filter(FactTicket.estado.in_(_OPEN_STATES))
+        .filter(func.lower(FactTicket.estado).in_(_OPEN_STATES_LOWER))
         .scalar() or 0
     )
 
@@ -33,7 +67,10 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
 
     critical_tickets = (
         db.query(func.count(FactTicket.id))
-        .filter(FactTicket.estado.in_(_OPEN_STATES), FactTicket.prioridad.in_(_CRITICAL_PRIORITIES))
+        .filter(
+            func.lower(FactTicket.estado).in_(_OPEN_STATES_LOWER),
+            func.lower(FactTicket.prioridad).in_(_CRITICAL_PRIORITIES_LOWER),
+        )
         .scalar() or 0
     )
 
@@ -44,7 +81,7 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
     )
 
     resolved = db.query(func.count(FactTicket.id)).filter(
-        FactTicket.estado == "Cerrado"
+        func.lower(FactTicket.estado) == _CLOSED_STATE_LOWER
     ).scalar() or 0
     total = db.query(func.count(FactTicket.id)).scalar() or 1
     resolution_rate = round((resolved / total) * 100, 1)
@@ -125,8 +162,8 @@ def get_tickets_by_channel(db: Session) -> Dict[str, Any]:
         .group_by(FactTicket.canal)
         .all()
     )
-    total = sum(count for _, count in rows)
-    return _distribution(rows, total)
+    # Fusiona casing mezclado ("email" vs "Email") en una sola categoría.
+    return _merge_distribution(rows, _CANAL_CANON)
 
 
 def get_tickets_by_priority(db: Session) -> Dict[str, Any]:
@@ -135,8 +172,8 @@ def get_tickets_by_priority(db: Session) -> Dict[str, Any]:
         .group_by(FactTicket.prioridad)
         .all()
     )
-    total = sum(count for _, count in rows)
-    return _distribution(rows, total)
+    # Fusiona casing mezclado ("alta" vs "Alta", "critica" vs "Crítica").
+    return _merge_distribution(rows, _PRIORIDAD_CANON)
 
 
 def get_tickets_by_source_project(db: Session) -> Dict[str, Any]:
@@ -242,7 +279,10 @@ def get_critical_tickets_by_module(db: Session) -> Dict[str, Any]:
             FactTicket.salud_ref,
             FactTicket.suscripcion_id_red,
         )
-        .filter(FactTicket.estado.in_(_OPEN_STATES), FactTicket.prioridad.in_(_CRITICAL_PRIORITIES))
+        .filter(
+            func.lower(FactTicket.estado).in_(_OPEN_STATES_LOWER),
+            func.lower(FactTicket.prioridad).in_(_CRITICAL_PRIORITIES_LOWER),
+        )
         .all()
     )
     conteo: Dict[str, int] = {}
