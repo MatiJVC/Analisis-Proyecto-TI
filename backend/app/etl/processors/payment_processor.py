@@ -11,9 +11,6 @@ from app.pagos.models.fact_payments_events import FactPaymentsEvent
 from app.pagos.models.dim_error_codes import get_error_code_id
 from app.pagos.services.payment_service import get_or_create_estado, confirm_payment, _hash_token
 
-_AUDIT_STATUSES = {"esperando_revisión", "Aprobado", "discrepancia_de_monto", "discrepancia_de_transacciones"}
-
-
 def _to_uuid(value) -> _uuid_mod.UUID:
     try:
         return _uuid_mod.UUID(str(value))
@@ -65,7 +62,11 @@ def process_payment_event(db: Session, raw_event: RawEvent) -> None:
         elif "transaccion" in raw_err or "transaction" in raw_err:
             audit_status = "discrepancia_de_transacciones"
         else:
-            audit_status = "esperando_revisión"
+            # Rechazo sin keyword reconocido (banco/saldo insuficiente o sin
+            # codigo_error) — coincide con el estado real que confirm_payment()
+            # resuelve para FactPagos (ver payment_service._resolve... /
+            # tests/test_payment_service.py::TestConfirmPaymentRechazado).
+            audit_status = "Rechazado"
         db.add(FactPaymentsEvent(
             transaction_id=_to_uuid(payload.get("transaction_id")),
             amount=float(fact.monto or 0),
@@ -124,7 +125,11 @@ def process_payment_event(db: Session, raw_event: RawEvent) -> None:
         )
         db.add(fact)
     db.flush()
-    audit_status = status_name if status_name in _AUDIT_STATUSES else "esperando_revisión"
+    # Debe coincidir con el CheckConstraint de fact_payments_events (ver migración
+    # 006_fact_payments_events_allow_rechazado.sql); 'Rechazado' es un fallo genérico
+    # real (banco/saldo insuficiente) y no debe downgradearse a 'esperando_revisión'.
+    audit_statuses = {"esperando_revisión", "Aprobado", "discrepancia_de_monto", "discrepancia_de_transacciones", "Rechazado"}
+    audit_status = status_name if status_name in audit_statuses else "esperando_revisión"
     db.add(FactPaymentsEvent(
         transaction_id=_to_uuid(payload.get("transaction_id")),
         order_id=str(order_id) if order_id is not None else None,

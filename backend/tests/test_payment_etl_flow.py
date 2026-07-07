@@ -24,6 +24,7 @@ from app.pagos.services.payment_service import _hash_token
 from app.models.raw.raw_events import RawEvent
 from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
 from app.pagos.models.fact_pagos import FactPagos
+from app.pagos.models.fact_payments_events import FactPaymentsEvent
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -55,6 +56,17 @@ def _fact_from_db_add(mock_db: MagicMock) -> FactPagos:
         if isinstance(call[0][0], FactPagos)
     ]
     assert calls, "El procesador nunca llamó db.add(FactPagos(...))"
+    return calls[0]
+
+
+def _payments_event_from_db_add(mock_db: MagicMock) -> FactPaymentsEvent:
+    """Extrae el FactPaymentsEvent (registro de auditoría) que pasó por db.add()."""
+    calls = [
+        call[0][0]
+        for call in mock_db.add.call_args_list
+        if isinstance(call[0][0], FactPaymentsEvent)
+    ]
+    assert calls, "El procesador nunca llamó db.add(FactPaymentsEvent(...))"
     return calls[0]
 
 
@@ -322,6 +334,68 @@ class TestFlujoPagoRechazadoGenerico:
         process_payment_event(db, raw)
 
         mock_estado_fn.assert_called_once_with(db, "Rechazado")
+
+    @patch("app.etl.processors.payment_processor.get_error_code_id", return_value=7)
+    @patch("app.etl.processors.payment_processor.get_or_create_estado")
+    def test_rechazo_generico_no_downgradea_audit_status(self, mock_estado_fn, mock_error_fn, db):
+        """Regresión: FactPaymentsEvent.status debe quedar en 'Rechazado', no reescrito a
+        'esperando_revisión' (bug real: el CheckConstraint de fact_payments_events no
+        incluía 'Rechazado' y el processor lo downgradeaba silenciosamente antes del fix,
+        haciendo que get_payment_kpis/get_payment_timeline contaran rechazos como pendientes)."""
+        mock_estado_fn.return_value = _mock_estado("Rechazado", id_=5)
+        payload = {**PAGO_RECHAZADO_MONTO_PAYLOAD, "error_code": "ERR_BANCO_RECHAZA"}
+        raw = _make_raw_event("pago_rechazado", payload)
+
+        process_payment_event(db, raw)
+
+        event = _payments_event_from_db_add(db)
+        assert event.status == "Rechazado"
+
+
+# ─── Flujo 4c: confirmar_pago rechazado genérico → Rechazado (auditoría) ────
+
+class TestFlujoConfirmarPagoRechazadoGenerico:
+
+    CONFIRMAR_PAGO_PAYLOAD = {
+        "token_transaccion": "550e8400-e29b-41d4-a716-446655440000",
+        "approved": False,
+        "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
+        "codigo_error": "ERR_BANCO_RECHAZA",
+        "timestamp_evento": "2026-06-17T10:00:45Z",
+    }
+
+    @patch("app.etl.processors.payment_processor.confirm_payment")
+    def test_rechazo_generico_no_downgradea_audit_status(self, mock_confirm):
+        """Regresión: la rama confirmar_pago tenía el mismo bug que pago_rechazado directo
+        (ver TestFlujoPagoRechazadoGenerico) — un rechazo sin keyword de monto/transacción
+        se downgradeaba a 'esperando_revisión' en FactPaymentsEvent en vez de 'Rechazado',
+        aunque confirm_payment() ya resolvía correctamente el estado real en FactPagos."""
+        mock_fact = MagicMock(spec=FactPagos)
+        mock_fact.monto = 149990.00
+        mock_confirm.return_value = mock_fact
+
+        db = MagicMock()
+        raw = _make_raw_event("confirmar_pago", self.CONFIRMAR_PAGO_PAYLOAD)
+
+        process_payment_event(db, raw)
+
+        event = _payments_event_from_db_add(db)
+        assert event.status == "Rechazado"
+
+    @patch("app.etl.processors.payment_processor.confirm_payment")
+    def test_confirmacion_aprobada_sigue_aprobado(self, mock_confirm):
+        mock_fact = MagicMock(spec=FactPagos)
+        mock_fact.monto = 149990.00
+        mock_confirm.return_value = mock_fact
+
+        db = MagicMock()
+        payload = {**self.CONFIRMAR_PAGO_PAYLOAD, "approved": True, "codigo_error": None}
+        raw = _make_raw_event("confirmar_pago", payload)
+
+        process_payment_event(db, raw)
+
+        event = _payments_event_from_db_add(db)
+        assert event.status == "Aprobado"
 
 
 # ─── Flujo 5: pago_reembolsado → sin escritura warehouse ──────────────────────

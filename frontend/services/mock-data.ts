@@ -11,7 +11,6 @@ import type {
   IoTDevice,
   IoTAlert,
   PaymentKPIs,
-  PaymentTimeline,
   LogisticsKPIs,
   Route,
   ServiceStatus,
@@ -28,9 +27,6 @@ import type {
   StockStatusSummary,
   LocationsCatalogResponse,
   ProductsThresholdsResponse,
-  PaymentFailuresResponse,
-  PaymentConciliationResponse,
-  PaymentMethodsResponse,
   CRMKPIs,
   CRMTimeline,
   CRMTicketsResponse,
@@ -265,54 +261,6 @@ export const paymentKPIs: PaymentKPIs = {
   avgTransactionValue: 70.72,
   uptime: 99.99,
 };
-
-export const paymentTimeline: PaymentTimeline[] = Array.from(
-  { length: 24 },
-  (_, i) => {
-    const date = new Date();
-    date.setHours(date.getHours() - (23 - i));
-    const successful = Math.floor(1500 + Math.random() * 500);
-    return {
-      date: `${date.getHours()}:00`,
-      successful,
-      failed: Math.floor(successful * (0.005 + Math.random() * 0.01)),
-      amount: successful * (60 + Math.random() * 30),
-    };
-  },
-);
-
-export const paymentFailures: PaymentFailuresResponse = {
-  rejection_rate: 2.1,
-  total:          45892,
-  failed:         964,
-  reasons: [
-    { reason: "Fondos insuficientes",       count: 434, percentage: 45.0 },
-    { reason: "Tarjeta rechazada",          count: 230, percentage: 23.9 },
-    { reason: "Timeout del proveedor",      count: 169, percentage: 17.5 },
-    { reason: "Error de validación",        count: 131, percentage: 13.6 },
-  ],
-}
-
-export const paymentConciliation: PaymentConciliationResponse = {
-  statuses: [
-    { status: "Aprobado",                    count: 44820, percentage: 97.7 },
-    { status: "esperando_revisión",          count: 660,   percentage: 1.4  },
-    { status: "discrepancia_de_monto",       count: 298,   percentage: 0.6  },
-    { status: "discrepancia_de_transacciones", count: 114, percentage: 0.3  },
-  ],
-  total:         45892,
-  approval_rate: 97.66,
-}
-
-export const paymentMethods: PaymentMethodsResponse = {
-  methods: [
-    { name: "Tarjeta de Crédito", value: 48.5, count: 21720 },
-    { name: "Tarjeta de Débito",  value: 27.3, count: 12228 },
-    { name: "Transferencia",      value: 14.2, count: 6361  },
-    { name: "Billetera Digital",  value: 10.0, count: 4482  },
-  ],
-  total: 44791,
-}
 
 // Logistics Mock Data
 export const logisticsKPIs: LogisticsKPIs = {

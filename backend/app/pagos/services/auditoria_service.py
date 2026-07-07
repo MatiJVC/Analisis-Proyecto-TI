@@ -151,8 +151,8 @@ def get_detalle_reporte(db: Session, reporte_id: int) -> Dict[str, Any] | None:
     start = datetime.combine(fecha, datetime.min.time()).replace(tzinfo=timezone.utc)
     end = datetime.combine(fecha, datetime.max.time()).replace(tzinfo=timezone.utc)
 
-    _RESOLVED = ("Aprobado", "discrepancia_de_monto", "discrepancia_de_transacciones")
-    _FAILURES  = ("discrepancia_de_monto", "discrepancia_de_transacciones")
+    _RESOLVED = ("Aprobado", "discrepancia_de_monto", "discrepancia_de_transacciones", "Rechazado")
+    _FAILURES  = ("discrepancia_de_monto", "discrepancia_de_transacciones", "Rechazado")
 
     # Pago único por token_transaccion: tomar el estado más reciente del día
     latest = (
@@ -234,7 +234,12 @@ def get_detalle_reporte(db: Session, reporte_id: int) -> Dict[str, Any] | None:
 
 def generar_reporte_hoy(db: Session) -> None:
     """Genera el cierre diario del día actual usando los totales internos aprobados."""
-    today = date.today()
+    # date.today() usa la hora LOCAL del servidor; el resto del módulo (FactPagos.timestamp_evento,
+    # get_payment_kpis, sla_service, etc.) trabaja siempre en UTC. En husos horarios detrás de UTC
+    # (ej. UTC-4), "hoy" local puede ser un día calendario distinto al "hoy" UTC, generando el cierre
+    # con una ventana que no incluye los eventos recién ingeridos (bug real: reporte con 0 transacciones
+    # pese a haber datos, detectado probando /pagos con eventos inyectados en jul-2026).
+    today = datetime.now(tz=timezone.utc).date()
     start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
     end = datetime.combine(today, datetime.max.time()).replace(tzinfo=timezone.utc)
 

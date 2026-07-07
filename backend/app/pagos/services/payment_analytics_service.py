@@ -15,7 +15,12 @@ _ATTEMPT = "esperando_revisión"
 def get_payment_kpis(db: Session, hours: int = 24) -> Dict[str, Any]:
     since: datetime = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
 
-    _RESOLVED = (_APPROVED, *_FAILURE_STATES)
+    # "Rechazado" es un estado de fallo genérico (ver
+    # app/etl/processors/payment_processor.py::_resolve_status_name) además de las
+    # discrepancias — se incluye acá, local a la función, sin tocar el
+    # _FAILURE_STATES de módulo (que también usa get_payment_timeline).
+    _FAILURE_STATES_LOCAL = (*_FAILURE_STATES, "Rechazado")
+    _RESOLVED = (_APPROVED, *_FAILURE_STATES_LOCAL)
 
     # DISTINCT ON token_transaccion: agrupa por token de pago (consistente entre
     # intento_pago y pago_exitoso del mismo cobro), toma el estado más reciente.
@@ -36,7 +41,7 @@ def get_payment_kpis(db: Session, hours: int = 24) -> Dict[str, Any]:
 
     row = db.query(
         func.count(case((latest.c.status.in_(_RESOLVED), 1))).label("total_transactions"),
-        func.count(case((latest.c.status.in_(_FAILURE_STATES), 1))).label("failed_payments"),
+        func.count(case((latest.c.status.in_(_FAILURE_STATES_LOCAL), 1))).label("failed_payments"),
         func.coalesce(func.sum(case((latest.c.status == _APPROVED, latest.c.amount))), 0).label("revenue"),
         func.count(case((latest.c.status == _APPROVED, 1))).label("approved_count"),
     ).select_from(latest).one()
@@ -63,6 +68,10 @@ def get_payment_kpis(db: Session, hours: int = 24) -> Dict[str, Any]:
 
 
 def get_payment_timeline(db: Session, hours: int = 24) -> List[Dict[str, Any]]:
+    # "Rechazado" es un estado de fallo genérico además de las discrepancias — local
+    # a esta función, no se toca el _FAILURE_STATES de módulo (compartido con get_payment_kpis).
+    _FAILURE_STATES_LOCAL = (*_FAILURE_STATES, "Rechazado")
+
     # Redondear al bloque de 30 min actual
     now = datetime.now(tz=timezone.utc)
     half = 0 if now.minute < 30 else 30
@@ -83,7 +92,7 @@ def get_payment_timeline(db: Session, hours: int = 24) -> List[Dict[str, Any]]:
                 case((FactPaymentsEvent.status == _APPROVED, 1))
             ).label("successful"),
             func.count(
-                case((FactPaymentsEvent.status.in_(_FAILURE_STATES), 1))
+                case((FactPaymentsEvent.status.in_(_FAILURE_STATES_LOCAL), 1))
             ).label("failed"),
             func.coalesce(
                 func.sum(
