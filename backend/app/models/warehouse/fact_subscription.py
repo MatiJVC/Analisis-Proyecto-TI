@@ -11,7 +11,8 @@ class FactSubscription(Base):
     
     # Business Keys
     contract_id = Column(String(50), nullable=False, index=True, unique=True)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(String(50), nullable=True)
+
     plan_id = Column(Integer, nullable=False)
     
     # Dimension Attributes

@@ -314,3 +314,29 @@ class TestGetAllRetentionRates:
         assert isinstance(result["retention_30_days"], float)
         assert isinstance(result["retention_90_days"], float)
         assert isinstance(result["retention_annual"], float)
+
+
+# ─── get_multi_subscription_rate ─────────────────────────────────────────────
+
+class TestGetMultiSubscriptionRate:
+    def test_returns_zero_when_no_active_users(self):
+        from app.analytics.subscription_kpis import get_multi_subscription_rate
+        db = _make_scalar_db(0)
+        result = get_multi_subscription_rate(db)
+        assert result == 0.0
+
+    def test_calculates_rate_correctly(self):
+        from app.analytics.subscription_kpis import get_multi_subscription_rate
+        # total_active_users = 100, multi_sub_users = 15
+        db = _make_scalar_db(100, 15)
+        
+        # Mock sub_count column comparison to avoid TypeError
+        subquery_mock = db.query.return_value.filter.return_value.group_by.return_value.subquery.return_value
+        subquery_mock.c = MagicMock()
+        subquery_mock.c.sub_count = MagicMock()
+        subquery_mock.c.sub_count.__gt__.return_value = MagicMock()
+        
+        result = get_multi_subscription_rate(db)
+        assert result == 15.0
+
+

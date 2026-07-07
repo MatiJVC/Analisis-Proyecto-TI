@@ -103,7 +103,9 @@ export interface RetentionRates {
     ["90_days"]: number
     ["30_days"]: number
   }
+  multi_subscription_rate?: number
 }
+
 // Notifications
 export interface NotificationKPIs {
   total_notifications: number

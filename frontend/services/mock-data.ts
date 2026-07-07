@@ -110,7 +110,9 @@ export const retentionRates: RetentionRates = {
     ["30_days"]: 85.2,
     annual: 65.4,
   },
+  multi_subscription_rate: 12.4,
 };
+
 // Notifications Mock Data
 
 

@@ -18,7 +18,9 @@ from app.analytics.subscription_kpis import (
     get_subscription_summary,
     get_subscriptions_by_date,
     get_all_retention_rates,
+    get_multi_subscription_rate,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +137,9 @@ async def get_subscriptions_retention(db: Session = Depends(get_db)):
                 "90_days": data["retention_90_days"],
                 "annual": data["retention_annual"],
             },
+            "multi_subscription_rate": get_multi_subscription_rate(db),
         }
     except Exception:
         logger.exception("Error calculando retention rates")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+

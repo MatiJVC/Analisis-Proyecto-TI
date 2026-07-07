@@ -336,3 +336,34 @@ def get_all_retention_rates(db: Session) -> Dict[str, float]:
         "retention_90_days": get_retention_rate(db, 90),
         "retention_annual": get_retention_rate(db, 365)
     }
+
+
+def get_multi_subscription_rate(db: Session) -> float:
+    """
+    Calcula el porcentaje de usuarios activos que tienen más de una suscripción activa.
+    
+    Fórmula: (Usuarios activos con >1 suscripción) / (Usuarios activos con >=1 suscripción) * 100
+    """
+    user_counts = db.query(
+        FactSubscription.user_id,
+        func.count(FactSubscription.id).label("sub_count")
+    ).filter(
+        func.lower(FactSubscription.status) == "active",
+        FactSubscription.user_id.isnot(None),
+        FactSubscription.user_id != "",
+        FactSubscription.user_id != "undefined"
+    ).group_by(
+        FactSubscription.user_id
+    ).subquery()
+    
+    total_active_users = db.query(func.count(user_counts.c.user_id)).scalar() or 0
+    if total_active_users == 0:
+        return 0.0
+        
+    multi_sub_users = db.query(func.count(user_counts.c.user_id)).filter(
+        user_counts.c.sub_count > 1
+    ).scalar() or 0
+    
+    rate = (multi_sub_users / total_active_users) * 100
+    return round(rate, 2)
+

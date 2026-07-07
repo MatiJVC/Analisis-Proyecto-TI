@@ -49,8 +49,6 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
         else:
             user_id = payload.get("user_id")
             plan_id = payload.get("plan_id")
-            if user_id is None:
-                raise PayloadValidationError("Campo requerido faltante: user_id")
             if plan_id is None:
                 raise PayloadValidationError("Campo requerido faltante: plan_id")
 
@@ -64,7 +62,7 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
 
             fact_sub = FactSubscription(
                 contract_id=contract_id,
-                user_id=user_id,
+                user_id=str(user_id) if user_id is not None else None,
                 plan_id=plan_id,
                 status=status.lower() if isinstance(status, str) else status,
                 start_date=start_date,
@@ -72,6 +70,7 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
                 updated_at=datetime.now(tz=timezone.utc)
             )
             db.add(fact_sub)
+
 
         if raw_event.event_type == "subscription_created":
             fact_sub.renewed = raw_event.payload.get("renewed", False)
@@ -89,11 +88,27 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
                     fact_sub.end_date = datetime.fromisoformat(end_date).date()
                 else:
                     fact_sub.end_date = end_date
+        elif raw_event.event_type == "subscription_cancelled":
+            status_val = raw_event.payload.get("status", "cancelled")
+            if status_val is not None:
+                fact_sub.status = status_val.lower() if isinstance(status_val, str) else status_val
+            else:
+                fact_sub.status = "cancelled"
+
+            end_date = raw_event.payload.get("end_date") or raw_event.payload.get("cancelled_at")
+            if end_date and isinstance(end_date, str):
+                try:
+                    fact_sub.end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00")).date()
+                except ValueError:
+                    fact_sub.end_date = datetime.now(tz=timezone.utc).date()
+            else:
+                fact_sub.end_date = datetime.now(tz=timezone.utc).date()
         else:
             flags = _map_event_type_to_flags(raw_event.event_type)
             for flag_name, flag_value in flags.items():
                 if hasattr(fact_sub, flag_name):
                     setattr(fact_sub, flag_name, flag_value)
+
 
         if raw_event.event_type in ["payment_success", "payment_failed"]:
             fact_sub.billing_date = datetime.now(tz=timezone.utc)

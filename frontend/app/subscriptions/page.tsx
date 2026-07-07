@@ -304,10 +304,35 @@ function SubscriptionContent() {
             </CardContent>
           </Card>
 
-
-
-   
+          {/* Tasa de Multi-suscripcion Card */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold text-foreground">
+                Tasa de Multi-suscripción
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {retentionLoading ? (
+                <div className="h-6 bg-muted rounded animate-pulse" />
+              ) : (
+                <div className="flex flex-col space-y-2 justify-center py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Clientes con múltiples suscripciones
+                    </span>
+                    <span className="text-xl font-semibold text-primary">
+                      {retentionRates?.multi_subscription_rate?.toFixed(1) ?? 0}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Porcentaje de usuarios activos que poseen más de un contrato de suscripción vigente.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
+
       </div>
   );
 }
