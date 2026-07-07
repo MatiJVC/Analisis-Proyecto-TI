@@ -1,13 +1,16 @@
+import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.warehouse.fact_tickets import FactTicket
 from app.models.warehouse.dim_clientes_crm import DimClienteCRM
-from app.models.warehouse.fact_interacciones import FactInteraccion
 from app.models.warehouse.fact_sla_violaciones import FactSlaViolacion
+
+_CRITICAL_PRIORITIES = ("Alta", "Crítica")
+_OPEN_STATES = ("Abierto", "Progreso")
 
 
 def get_crm_kpis(db: Session) -> Dict[str, Any]:
@@ -17,7 +20,7 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
 
     open_tickets = (
         db.query(func.count(FactTicket.id))
-        .filter(FactTicket.estado.in_(["Abierto", "Progreso"]))
+        .filter(FactTicket.estado.in_(_OPEN_STATES))
         .scalar() or 0
     )
 
@@ -28,16 +31,15 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
     )
     avg_response_time = round(float(avg_response_time) * 60, 1) if avg_response_time else 0.0
 
-    avg_csat = (
-        db.query(func.avg(FactTicket.csat_score))
-        .filter(FactTicket.csat_score.isnot(None))
-        .scalar()
+    critical_tickets = (
+        db.query(func.count(FactTicket.id))
+        .filter(FactTicket.estado.in_(_OPEN_STATES), FactTicket.prioridad.in_(_CRITICAL_PRIORITIES))
+        .scalar() or 0
     )
-    csat_score = round(float(avg_csat), 1) if avg_csat else 0.0
 
-    messages_today = (
-        db.query(func.count(FactInteraccion.id))
-        .filter(FactInteraccion.ingested_at >= today_start)
+    tickets_created_today = (
+        db.query(func.count(FactTicket.id))
+        .filter(FactTicket.opened_at >= today_start)
         .scalar() or 0
     )
 
@@ -51,8 +53,8 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
         "totalCustomers": total_customers,
         "openTickets": open_tickets,
         "avgResponseTimeMinutes": avg_response_time,
-        "csatScore": csat_score,
-        "messagesToday": messages_today,
+        "criticalTickets": critical_tickets,
+        "ticketsCreatedToday": tickets_created_today,
         "resolutionRate": resolution_rate,
     }
 
@@ -148,18 +150,6 @@ def get_tickets_by_source_project(db: Session) -> Dict[str, Any]:
     return _distribution(rows, total)
 
 
-def get_csat_distribution(db: Session) -> Dict[str, Any]:
-    rows = (
-        db.query(FactTicket.csat_score, func.count(FactTicket.id))
-        .filter(FactTicket.csat_score.isnot(None))
-        .group_by(FactTicket.csat_score)
-        .all()
-    )
-    total = sum(count for _, count in rows)
-    rows_str = [(str(score), count) for score, count in rows]
-    return _distribution(rows_str, total)
-
-
 def get_sla_summary(db: Session) -> Dict[str, Any]:
     total_violations = db.query(func.count(FactSlaViolacion.id)).scalar() or 0
     critical_violations = (
@@ -184,3 +174,81 @@ def get_sla_summary(db: Session) -> Dict[str, Any]:
         "criticalViolations": critical_violations,
         "slaComplianceRate": sla_compliance,
     }
+
+
+_AGENTE_ID_MODULO_RE = re.compile(r"^p(\d{1,2})\.", re.IGNORECASE)
+
+# Convención de numeración de grupos del proyecto (confirmada por el usuario,
+# jul-2026): agente_id de tickets externos viene como "p{N}.algo@..." donde N
+# identifica el grupo de origen. Los tickets internos del propio CRM (grupo 07)
+# no siguen necesariamente este patrón, así que ese es también el default.
+_MODULO_POR_NUMERO = {
+    1: "Salud",
+    2: "Logística",
+    3: "Pedidos",
+    4: "Pagos",
+    5: "Inventario",
+    6: "Notificaciones",
+    7: "CRM",
+    8: "IoT",
+    9: "Analítica",
+    10: "Suscripciones",
+    11: "Incidentes",
+    12: "Identidad",
+}
+
+
+def _clasificar_modulo(
+    agente_id: Optional[str],
+    pedido_id_ref: Optional[str],
+    pago_id_ref: Optional[str],
+    salud_ref: Optional[str],
+    suscripcion_id_ref: Optional[str],
+) -> str:
+    """Clasifica a qué grupo/módulo pertenece un ticket.
+
+    Fuente primaria: el prefijo numérico de `agente_id` (`p{N}.` → grupo N).
+    Fallback: los 4 campos de referencia cruzada que sí tenemos en el modelo
+    (cubren solo Pedidos/Pagos/Salud/Suscripciones). Si nada matchea, se asume
+    ticket interno del propio CRM.
+    """
+    if agente_id:
+        match = _AGENTE_ID_MODULO_RE.match(agente_id.strip())
+        if match:
+            numero = int(match.group(1))
+            if numero in _MODULO_POR_NUMERO:
+                return _MODULO_POR_NUMERO[numero]
+
+    if pedido_id_ref:
+        return "Pedidos"
+    if pago_id_ref:
+        return "Pagos"
+    if salud_ref:
+        return "Salud"
+    if suscripcion_id_ref:
+        return "Suscripciones"
+
+    return "CRM"
+
+
+def get_critical_tickets_by_module(db: Session) -> Dict[str, Any]:
+    """Distribución de tickets críticos abiertos (Alta/Crítica, sin cerrar)
+    por módulo de origen — mismo universo que el KPI `criticalTickets`."""
+    rows = (
+        db.query(
+            FactTicket.agente_id,
+            FactTicket.pedido_id_ref,
+            FactTicket.pago_id_ref,
+            FactTicket.salud_ref,
+            FactTicket.suscripcion_id_red,
+        )
+        .filter(FactTicket.estado.in_(_OPEN_STATES), FactTicket.prioridad.in_(_CRITICAL_PRIORITIES))
+        .all()
+    )
+    conteo: Dict[str, int] = {}
+    for agente_id, pedido_id_ref, pago_id_ref, salud_ref, suscripcion_id_ref in rows:
+        modulo = _clasificar_modulo(agente_id, pedido_id_ref, pago_id_ref, salud_ref, suscripcion_id_ref)
+        conteo[modulo] = conteo.get(modulo, 0) + 1
+
+    total = sum(conteo.values())
+    return _distribution(list(conteo.items()), total)

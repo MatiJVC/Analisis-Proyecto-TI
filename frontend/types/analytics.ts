@@ -389,8 +389,8 @@ export interface CRMKPIs {
   totalCustomers: number
   openTickets: number
   avgResponseTimeMinutes: number
-  csatScore: number
-  messagesToday: number
+  criticalTickets: number
+  ticketsCreatedToday: number
   resolutionRate: number
 }
 

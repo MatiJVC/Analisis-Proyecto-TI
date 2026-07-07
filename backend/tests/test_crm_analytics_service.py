@@ -76,7 +76,7 @@ class TestGetCrmKpis:
         result = get_crm_kpis(db)
         expected_keys = {
             "totalCustomers", "openTickets", "avgResponseTimeMinutes",
-            "csatScore", "messagesToday", "resolutionRate"
+            "criticalTickets", "ticketsCreatedToday", "resolutionRate"
         }
         assert expected_keys.issubset(result.keys())
 
@@ -105,11 +105,12 @@ class TestGetCrmKpis:
         result = get_crm_kpis(db)
         assert result["avgResponseTimeMinutes"] == 0.0
 
-    def test_csat_none_returns_zero(self):
+    def test_critical_tickets_and_created_today_are_ints(self):
         from app.services.crm_analytics_service import get_crm_kpis
-        db = _make_db_scalar(None)
+        db = _make_db_scalar(3)
         result = get_crm_kpis(db)
-        assert result["csatScore"] == 0.0
+        assert isinstance(result["criticalTickets"], int)
+        assert isinstance(result["ticketsCreatedToday"], int)
 
 
 # ─── get_crm_timeline ─────────────────────────────────────────────────────────
@@ -298,19 +299,64 @@ class TestGetTicketsBySourceProject:
         assert result == {"total": 0, "items": []}
 
 
-# ─── get_csat_distribution ──────────────────────────────────────────────────────
+# ─── _clasificar_modulo ─────────────────────────────────────────────────────────
 
-class TestGetCsatDistribution:
-    def test_returns_distribution_with_string_names(self):
-        from app.services.crm_analytics_service import get_csat_distribution
-        db = _make_db_rows([(5, 8), (4, 2)])
-        result = get_csat_distribution(db)
-        assert result["total"] == 10
-        names = {item["name"] for item in result["items"]}
-        assert names == {"5", "4"}
+class TestClasificarModulo:
+    def test_agente_id_prefijo_numerico_mapea_grupo(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo("p8.agent@ucn.cl", None, None, None, None) == "IoT"
+        assert _clasificar_modulo("p7.agent@ucn.cl", None, None, None, None) == "CRM"
+        assert _clasificar_modulo("p1.agent@ucn.cl", None, None, None, None) == "Salud"
 
-    def test_empty_returns_zero_total(self):
-        from app.services.crm_analytics_service import get_csat_distribution
-        db = _make_db_rows([])
-        result = get_csat_distribution(db)
+    def test_agente_id_numero_fuera_de_rango_cae_a_fallback(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo("p99.agent@ucn.cl", "PED-1", None, None, None) == "Pedidos"
+
+    def test_sin_agente_id_usa_referencia_pedido(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo(None, "PED-1", None, None, None) == "Pedidos"
+
+    def test_sin_agente_id_usa_referencia_pago(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo(None, None, "PAG-1", None, None) == "Pagos"
+
+    def test_sin_agente_id_usa_referencia_salud(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo(None, None, None, "SAL-1", None) == "Salud"
+
+    def test_sin_agente_id_usa_referencia_suscripcion(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo(None, None, None, None, "SUB-1") == "Suscripciones"
+
+    def test_sin_nada_cae_a_crm(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo(None, None, None, None, None) == "CRM"
+
+    def test_agente_id_sin_formato_p_numero_usa_fallback(self):
+        from app.services.crm_analytics_service import _clasificar_modulo
+        assert _clasificar_modulo("agente.random@ucn.cl", None, "PAG-1", None, None) == "Pagos"
+
+
+# ─── get_critical_tickets_by_module ─────────────────────────────────────────────
+
+class TestGetCriticalTicketsByModule:
+    def test_agrupa_por_modulo_clasificado(self):
+        from app.services.crm_analytics_service import get_critical_tickets_by_module
+        db = MagicMock()
+        rows = [
+            ("p8.agent@ucn.cl", None, None, None, None),   # IoT
+            ("p8.agent@ucn.cl", None, None, None, None),   # IoT
+            (None, "PED-1", None, None, None),             # Pedidos
+        ]
+        db.query.return_value.filter.return_value.all.return_value = rows
+        result = get_critical_tickets_by_module(db)
+        assert result["total"] == 3
+        by_name = {item["name"]: item["count"] for item in result["items"]}
+        assert by_name == {"IoT": 2, "Pedidos": 1}
+
+    def test_sin_tickets_criticos_devuelve_vacio(self):
+        from app.services.crm_analytics_service import get_critical_tickets_by_module
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = []
+        result = get_critical_tickets_by_module(db)
         assert result == {"total": 0, "items": []}

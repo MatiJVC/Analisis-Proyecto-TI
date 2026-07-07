@@ -213,8 +213,8 @@ export const crmAPI = {
   getPriority: () => fetchAPI("/v1/kpis/crm/priority", mockData.crmPriority),
   getSourceProjects: () =>
     fetchAPI("/v1/kpis/crm/source-projects", mockData.crmSourceProjects),
-  getCsatDistribution: () =>
-    fetchAPI("/v1/kpis/crm/csat", mockData.crmCsatDistribution),
+  getCriticalByModule: () =>
+    fetchAPI("/v1/kpis/crm/critical-by-module", mockData.crmCriticalByModule),
 };
 
 // Inventory API

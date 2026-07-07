@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { KPICard, KPICardSkeleton } from '@/components/dashboard/kpi-card'
 import { ChartCard, ChartCardSkeleton } from '@/components/dashboard/chart-card'
@@ -13,15 +13,17 @@ import {
   useCRMChannels,
   useCRMPriority,
   useCRMSourceProjects,
-  useCRMCsat,
+  useCRMCriticalByModule,
 } from '@/hooks/use-analytics'
 import { ApiError, crmAPI } from '@/services/api'
 import {
   Users,
   Headphones,
   Clock,
-  ThumbsUp,
-  MessageSquare,
+  AlertTriangle,
+  CalendarPlus,
+  Loader2,
+  Radio,
   TrendingUp,
   ShieldAlert,
   ShieldCheck,
@@ -74,6 +76,29 @@ const PRIORITY_CHART_COLORS: Record<string, string> = {
 }
 
 const CHANNEL_CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+
+// Cuántos de los tickets recientes se verifican en vivo contra el CRM
+// externo al cargar la página (no en cada auto-refresh de 30s de SWR) —
+// limitado por los cold-starts de Vercel del servicio externo (hasta ~8s
+// por consulta, sin endpoint bulk).
+const LIVE_REFRESH_COUNT = 3
+
+const ESTADO_DISPLAY: Record<string, string> = {
+  abierto: 'Abierto', progreso: 'Progreso', resuelto: 'Resuelto', cerrado: 'Cerrado',
+}
+const PRIORIDAD_DISPLAY: Record<string, string> = {
+  baja: 'Baja', media: 'Media', alta: 'Alta', critica: 'Crítica', 'crítica': 'Crítica',
+}
+
+// El CRM externo devuelve estado/prioridad en minúscula sin tilde; nuestra
+// API interna ya los normaliza — esto deja ambas fuentes con el mismo casing
+// al mezclarlas en la UI.
+function normalizeEstadoDisplay(value: string): string {
+  return ESTADO_DISPLAY[value.toLowerCase()] ?? value
+}
+function normalizePrioridadDisplay(value: string): string {
+  return PRIORIDAD_DISPLAY[value.toLowerCase()] ?? value
+}
 
 const chartTooltipProps = {
   contentStyle: {
@@ -200,9 +225,48 @@ export default function CRMPage() {
   const { data: channels,       isLoading: channelsLoading,       error: channelsError }       = useCRMChannels()
   const { data: priority,       isLoading: priorityLoading,       error: priorityError }       = useCRMPriority()
   const { data: sourceProjects, isLoading: sourceProjectsLoading, error: sourceProjectsError }  = useCRMSourceProjects()
-  const { data: csat,           isLoading: csatLoading,           error: csatError }            = useCRMCsat()
+  const { data: criticalByModule, isLoading: criticalByModuleLoading, error: criticalByModuleError } = useCRMCriticalByModule()
 
   const chartPoints = timeline?.points ?? []
+
+  // Refresco en vivo de los N tickets más recientes contra el CRM externo —
+  // solo al entrar a los IDs top-N por primera vez, no en cada revalidación
+  // de SWR (ver LIVE_REFRESH_COUNT).
+  const [liveTickets, setLiveTickets] = useState<Record<string, CRMExternalTicketResponse>>({})
+  const [liveLoadingId, setLiveLoadingId] = useState<string | null>(null)
+  const attemptedLiveIds = useRef<Set<string>>(new Set())
+  const topTicketIdsKey = (tickets?.tickets ?? [])
+    .slice(0, LIVE_REFRESH_COUNT)
+    .map((t) => t.ticketId)
+    .join(',')
+
+  useEffect(() => {
+    const idsToFetch = topTicketIdsKey ? topTicketIdsKey.split(',').filter((id) => !attemptedLiveIds.current.has(id)) : []
+    if (idsToFetch.length === 0) return
+
+    let cancelled = false
+    async function fetchSequentially() {
+      for (const id of idsToFetch) {
+        if (cancelled) return
+        attemptedLiveIds.current.add(id)
+        setLiveLoadingId(id)
+        try {
+          const data = await crmAPI.getTicketLive(id)
+          if (!cancelled) {
+            setLiveTickets((prev) => ({ ...prev, [id]: data as CRMExternalTicketResponse }))
+          }
+        } catch {
+          // Silencioso: si falla la consulta en vivo (timeout, 404, etc.),
+          // se deja el dato interno de la lista tal cual estaba.
+        }
+      }
+      if (!cancelled) setLiveLoadingId(null)
+    }
+    fetchSequentially()
+    return () => {
+      cancelled = true
+    }
+  }, [topTicketIdsKey])
 
   return (
     <DashboardLayout>
@@ -235,19 +299,19 @@ export default function CRMPage() {
                 icon={<Headphones className="h-5 w-5" />}
               />
               <KPICard
-                title="Tiempo Respuesta"
+                title="Tiempo Resolución Prom."
                 value={formatMinutes(kpis?.avgResponseTimeMinutes ?? 0)}
                 icon={<Clock className="h-5 w-5" />}
               />
               <KPICard
-                title="CSAT Score"
-                value={kpis?.csatScore?.toFixed(1) ?? '0.0'}
-                icon={<ThumbsUp className="h-5 w-5" />}
+                title="Tickets Críticos"
+                value={kpis?.criticalTickets ?? 0}
+                icon={<AlertTriangle className="h-5 w-5" />}
               />
               <KPICard
-                title="Mensajes Hoy"
-                value={kpis?.messagesToday ?? 0}
-                icon={<MessageSquare className="h-5 w-5" />}
+                title="Tickets Creados Hoy"
+                value={kpis?.ticketsCreatedToday ?? 0}
+                icon={<CalendarPlus className="h-5 w-5" />}
               />
               <KPICard
                 title="Tasa Resolución"
@@ -406,21 +470,21 @@ export default function CRMPage() {
             </ChartCard>
           )}
 
-          {/* Distribución CSAT */}
-          {csatLoading ? (
+          {/* Críticos por Módulo */}
+          {criticalByModuleLoading ? (
             <ChartCardSkeleton />
-          ) : csatError ? (
-            <SectionError error={csatError} />
+          ) : criticalByModuleError ? (
+            <SectionError error={criticalByModuleError} />
           ) : (
-            <ChartCard title="Distribución CSAT" description="Puntajes de satisfacción del cliente (1–5)">
+            <ChartCard title="Tickets Críticos por Módulo" description="Alta/Crítica abiertos — qué grupo origina más carga urgente">
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={csat?.items ?? []}>
+                  <BarChart data={criticalByModule?.items ?? []} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} />
-                    <YAxis stroke="var(--muted-foreground)" fontSize={12} />
+                    <XAxis type="number" stroke="var(--muted-foreground)" fontSize={12} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" stroke="var(--muted-foreground)" fontSize={12} width={90} />
                     <Tooltip {...chartTooltipProps} />
-                    <Bar dataKey="count" fill="var(--chart-2)" radius={[4, 4, 0, 0]} name="Tickets" />
+                    <Bar dataKey="count" fill="var(--chart-5)" radius={[0, 4, 4, 0]} name="Tickets críticos" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -444,30 +508,42 @@ export default function CRMPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {(tickets?.tickets ?? []).map((ticket: CRMTicketRow) => (
-                    <div
-                      key={ticket.ticketId}
-                      className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-foreground truncate">
-                            {ticket.asunto}
-                          </span>
-                          <StatusBadge
-                            status={PRIORITY_STATUS[ticket.prioridad] ?? 'neutral'}
-                            label={ticket.prioridad}
-                          />
+                  {(tickets?.tickets ?? []).map((ticket: CRMTicketRow) => {
+                    const live = liveTickets[ticket.ticketId]
+                    const estado = normalizeEstadoDisplay(live?.estado ?? ticket.estado)
+                    const prioridad = normalizePrioridadDisplay(live?.prioridad ?? ticket.prioridad)
+                    const isLiveLoading = liveLoadingId === ticket.ticketId
+                    return (
+                      <div
+                        key={ticket.ticketId}
+                        className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-foreground truncate">
+                              {ticket.asunto}
+                            </span>
+                            <StatusBadge status={PRIORITY_STATUS[prioridad] ?? 'neutral'} label={prioridad} />
+                            {isLiveLoading && (
+                              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                            )}
+                            {live && !isLiveLoading && (
+                              <Radio
+                                className="h-3.5 w-3.5 shrink-0 text-chart-1"
+                                aria-label="Verificado en vivo con el CRM externo"
+                              />
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {ticket.ticketId} · {ticket.canal} · {ticket.sourceProject} · {timeAgo(ticket.openedAt)}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {ticket.ticketId} · {ticket.canal} · {ticket.sourceProject} · {timeAgo(ticket.openedAt)}
+                        <div className="ml-4 shrink-0">
+                          <StatusBadge status={STATE_LABEL[estado] ?? 'neutral'} label={estado} />
                         </div>
                       </div>
-                      <div className="ml-4 shrink-0">
-                        <StatusBadge status={STATE_LABEL[ticket.estado] ?? 'neutral'} label={ticket.estado} />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>

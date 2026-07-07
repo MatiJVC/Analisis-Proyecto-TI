@@ -1,7 +1,7 @@
 """
 Tests para los endpoints de distribución de CRM (canal, prioridad, dominio de
-origen, CSAT). Archivo separado de test_crm_analytics_endpoints.py, que
-documenta explícitamente "los cuatro endpoints" originales de kpis_crm.py.
+origen, críticos por módulo). Archivo separado de test_crm_analytics_endpoints.py,
+que documenta explícitamente "los cuatro endpoints" originales de kpis_crm.py.
 """
 from fastapi.testclient import TestClient
 
@@ -65,10 +65,10 @@ class TestCRMSourceProjects:
         assert resp.status_code == 500
 
 
-class TestCRMCsat:
+class TestCRMCriticalByModule:
     def test_returns_200(self, client: TestClient, monkeypatch):
-        monkeypatch.setattr("app.api.routes.kpis_crm.get_csat_distribution", lambda db: _DISTRIBUTION)
-        resp = client.get("/v1/kpis/crm/csat")
+        monkeypatch.setattr("app.api.routes.kpis_crm.get_critical_tickets_by_module", lambda db: _DISTRIBUTION)
+        resp = client.get("/v1/kpis/crm/critical-by-module")
         assert resp.status_code == 200
         assert resp.json()["total"] == 10
 
@@ -76,6 +76,6 @@ class TestCRMCsat:
         def raise_error(db):
             raise RuntimeError("boom")
 
-        monkeypatch.setattr("app.api.routes.kpis_crm.get_csat_distribution", raise_error)
-        resp = client.get("/v1/kpis/crm/csat")
+        monkeypatch.setattr("app.api.routes.kpis_crm.get_critical_tickets_by_module", raise_error)
+        resp = client.get("/v1/kpis/crm/critical-by-module")
         assert resp.status_code == 500

@@ -23,7 +23,7 @@ from app.services.crm_analytics_service import (
     get_tickets_by_channel,
     get_tickets_by_priority,
     get_tickets_by_source_project,
-    get_csat_distribution,
+    get_critical_tickets_by_module,
 )
 from app.services.crm_external_client import (
     get_ticket_estado,
@@ -145,16 +145,16 @@ async def get_crm_source_projects_endpoint(db: Session = Depends(get_db)) -> CRM
 
 
 @router.get(
-    "/crm/csat",
+    "/crm/critical-by-module",
     dependencies=[Depends(require_any_role(CRM_ROLES))],
     response_model=CRMDistributionResponse,
-    summary="Distribución de puntajes CSAT (1-5)",
+    summary="Tickets críticos abiertos por módulo/grupo de origen",
 )
-async def get_crm_csat_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
+async def get_crm_critical_by_module_endpoint(db: Session = Depends(get_db)) -> CRMDistributionResponse:
     try:
-        return CRMDistributionResponse(**get_csat_distribution(db))
+        return CRMDistributionResponse(**get_critical_tickets_by_module(db))
     except Exception:
-        logger.exception("Error distribución CSAT CRM")
+        logger.exception("Error distribución de críticos por módulo CRM")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
 
 

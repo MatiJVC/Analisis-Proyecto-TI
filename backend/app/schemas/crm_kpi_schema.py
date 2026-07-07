@@ -7,8 +7,8 @@ class CRMKPIsResponse(BaseModel):
     totalCustomers: int = Field(..., description="Clientes únicos registrados")
     openTickets: int = Field(..., description="Tickets en estado Abierto o Progreso")
     avgResponseTimeMinutes: float = Field(..., description="Tiempo promedio de resolución en minutos")
-    csatScore: float = Field(..., description="Puntaje CSAT promedio (1–5)")
-    messagesToday: int = Field(..., description="Interacciones creadas hoy")
+    criticalTickets: int = Field(..., description="Tickets abiertos con prioridad Alta o Crítica")
+    ticketsCreatedToday: int = Field(..., description="Tickets creados hoy (ticket.creado)")
     resolutionRate: float = Field(..., description="Porcentaje de tickets cerrados sobre el total")
 
 
