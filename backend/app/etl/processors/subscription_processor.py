@@ -60,7 +60,7 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
             else:
                 start_date = datetime.now(tz=timezone.utc).date()
 
-            status = payload.get("status", "active")
+            status = payload.get("status") or "active"
 
             fact_sub = FactSubscription(
                 contract_id=contract_id,
@@ -80,7 +80,8 @@ def process_subscription_event(db: Session, raw_event: RawEvent) -> Optional[Fac
 
             if "status" in raw_event.payload:
                 status_val = raw_event.payload.get("status")
-                fact_sub.status = status_val.lower() if isinstance(status_val, str) else status_val
+                if status_val is not None:
+                    fact_sub.status = status_val.lower() if isinstance(status_val, str) else status_val
 
             if "end_date" in raw_event.payload:
                 end_date = raw_event.payload.get("end_date")
