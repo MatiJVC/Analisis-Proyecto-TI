@@ -23,7 +23,7 @@ class FactPaymentsEvent(Base):
     __table_args__ = (
         Index("idx_fact_payments_events_tx_token_ts", "transaction_id", "token_transaccion", "timestamp_evento"),
         CheckConstraint(
-            "status IN ('esperando_revisión', 'Aprobado', 'discrepancia_de_monto', 'discrepancia_de_transacciones')",
+            "status IN ('esperando_revisión', 'Aprobado', 'discrepancia_de_monto', 'discrepancia_de_transacciones', 'Rechazado')",
             name="ck_fact_payments_events_status",
         ),
     )

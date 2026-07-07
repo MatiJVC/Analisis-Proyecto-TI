@@ -11,7 +11,6 @@ import type {
   IoTDevice,
   IoTAlert,
   PaymentKPIs,
-  PaymentTimeline,
   LogisticsKPIs,
   Route,
   ServiceStatus,
@@ -28,13 +27,12 @@ import type {
   StockStatusSummary,
   LocationsCatalogResponse,
   ProductsThresholdsResponse,
-  PaymentFailuresResponse,
-  PaymentConciliationResponse,
-  PaymentMethodsResponse,
   CRMKPIs,
   CRMTimeline,
   CRMTicketsResponse,
   CRMSLASummary,
+  CRMExternalTicketResponse,
+  CRMDistributionResponse,
 } from "@/types/analytics";
 
 // Orders Mock Data
@@ -265,54 +263,6 @@ export const paymentKPIs: PaymentKPIs = {
   avgTransactionValue: 70.72,
   uptime: 99.99,
 };
-
-export const paymentTimeline: PaymentTimeline[] = Array.from(
-  { length: 24 },
-  (_, i) => {
-    const date = new Date();
-    date.setHours(date.getHours() - (23 - i));
-    const successful = Math.floor(1500 + Math.random() * 500);
-    return {
-      date: `${date.getHours()}:00`,
-      successful,
-      failed: Math.floor(successful * (0.005 + Math.random() * 0.01)),
-      amount: successful * (60 + Math.random() * 30),
-    };
-  },
-);
-
-export const paymentFailures: PaymentFailuresResponse = {
-  rejection_rate: 2.1,
-  total:          45892,
-  failed:         964,
-  reasons: [
-    { reason: "Fondos insuficientes",       count: 434, percentage: 45.0 },
-    { reason: "Tarjeta rechazada",          count: 230, percentage: 23.9 },
-    { reason: "Timeout del proveedor",      count: 169, percentage: 17.5 },
-    { reason: "Error de validación",        count: 131, percentage: 13.6 },
-  ],
-}
-
-export const paymentConciliation: PaymentConciliationResponse = {
-  statuses: [
-    { status: "Aprobado",                    count: 44820, percentage: 97.7 },
-    { status: "esperando_revisión",          count: 660,   percentage: 1.4  },
-    { status: "discrepancia_de_monto",       count: 298,   percentage: 0.6  },
-    { status: "discrepancia_de_transacciones", count: 114, percentage: 0.3  },
-  ],
-  total:         45892,
-  approval_rate: 97.66,
-}
-
-export const paymentMethods: PaymentMethodsResponse = {
-  methods: [
-    { name: "Tarjeta de Crédito", value: 48.5, count: 21720 },
-    { name: "Tarjeta de Débito",  value: 27.3, count: 12228 },
-    { name: "Transferencia",      value: 14.2, count: 6361  },
-    { name: "Billetera Digital",  value: 10.0, count: 4482  },
-  ],
-  total: 44791,
-}
 
 // Logistics Mock Data
 export const logisticsKPIs: LogisticsKPIs = {
@@ -715,11 +665,11 @@ export const crmTimeline: CRMTimeline = {
 
 export const crmTickets: CRMTicketsResponse = {
   tickets: [
-    { ticketId: 'TKT-4521', asunto: 'Problema con pago de suscripción', estado: 'abierto',       prioridad: 'alta',  canal: 'email',   sourceProject: 'pagos',      openedAt: new Date(Date.now() - 10 * 60000).toISOString(),  updatedAt: new Date(Date.now() - 10 * 60000).toISOString() },
-    { ticketId: 'TKT-4520', asunto: 'No puede acceder a su cuenta',     estado: 'en_progreso',   prioridad: 'media', canal: 'chat',    sourceProject: 'auth',       openedAt: new Date(Date.now() - 25 * 60000).toISOString(),  updatedAt: new Date(Date.now() - 20 * 60000).toISOString() },
-    { ticketId: 'TKT-4519', asunto: 'Solicitud: exportar a CSV',        estado: 'abierto',       prioridad: 'baja',  canal: 'portal',  sourceProject: 'analytics',  openedAt: new Date(Date.now() - 60 * 60000).toISOString(),  updatedAt: new Date(Date.now() - 60 * 60000).toISOString() },
-    { ticketId: 'TKT-4518', asunto: 'Integración no funciona',          estado: 'cerrado',       prioridad: 'alta',  canal: 'email',   sourceProject: 'inventario', openedAt: new Date(Date.now() - 120 * 60000).toISOString(), updatedAt: new Date(Date.now() - 30 * 60000).toISOString() },
-    { ticketId: 'TKT-4517', asunto: 'Error al generar reporte mensual', estado: 'en_progreso',   prioridad: 'media', canal: 'telefono',sourceProject: 'orders',     openedAt: new Date(Date.now() - 180 * 60000).toISOString(), updatedAt: new Date(Date.now() - 45 * 60000).toISOString() },
+    { ticketId: 'TKT-4521', asunto: 'Problema con pago de suscripción', estado: 'Abierto',  prioridad: 'Alta',    canal: 'Email',    sourceProject: 'pagos',      openedAt: new Date(Date.now() - 10 * 60000).toISOString(),  updatedAt: new Date(Date.now() - 10 * 60000).toISOString() },
+    { ticketId: 'TKT-4520', asunto: 'No puede acceder a su cuenta',     estado: 'Progreso', prioridad: 'Media',   canal: 'Chat',     sourceProject: 'auth',       openedAt: new Date(Date.now() - 25 * 60000).toISOString(),  updatedAt: new Date(Date.now() - 20 * 60000).toISOString() },
+    { ticketId: 'TKT-4519', asunto: 'Solicitud: exportar a CSV',        estado: 'Abierto',  prioridad: 'Baja',    canal: 'App',      sourceProject: 'analytics',  openedAt: new Date(Date.now() - 60 * 60000).toISOString(),  updatedAt: new Date(Date.now() - 60 * 60000).toISOString() },
+    { ticketId: 'TKT-4518', asunto: 'Integración no funciona',          estado: 'Cerrado',  prioridad: 'Alta',    canal: 'Email',    sourceProject: 'inventario', openedAt: new Date(Date.now() - 120 * 60000).toISOString(), updatedAt: new Date(Date.now() - 30 * 60000).toISOString() },
+    { ticketId: 'TKT-4517', asunto: 'Error al generar reporte mensual', estado: 'Progreso', prioridad: 'Crítica', canal: 'Teléfono', sourceProject: 'orders',     openedAt: new Date(Date.now() - 180 * 60000).toISOString(), updatedAt: new Date(Date.now() - 45 * 60000).toISOString() },
   ],
 }
 
@@ -727,6 +677,62 @@ export const crmSLA: CRMSLASummary = {
   totalViolations:    8,
   criticalViolations: 2,
   slaComplianceRate:  94.5,
+}
+
+export const crmChannels: CRMDistributionResponse = {
+  total: 142,
+  items: [
+    { name: 'Chat', count: 58, percentage: 40.8 },
+    { name: 'Email', count: 42, percentage: 29.6 },
+    { name: 'Teléfono', count: 30, percentage: 21.1 },
+    { name: 'App', count: 12, percentage: 8.5 },
+  ],
+}
+
+export const crmPriority: CRMDistributionResponse = {
+  total: 142,
+  items: [
+    { name: 'Baja', count: 40, percentage: 28.2 },
+    { name: 'Media', count: 55, percentage: 38.7 },
+    { name: 'Alta', count: 35, percentage: 24.6 },
+    { name: 'Crítica', count: 12, percentage: 8.5 },
+  ],
+}
+
+export const crmSourceProjects: CRMDistributionResponse = {
+  total: 142,
+  items: [
+    { name: 'orders', count: 48, percentage: 33.8 },
+    { name: 'pagos', count: 34, percentage: 23.9 },
+    { name: 'subscriptions', count: 26, percentage: 18.3 },
+    { name: 'salud', count: 20, percentage: 14.1 },
+    { name: 'inventario', count: 14, percentage: 9.9 },
+  ],
+}
+
+export const crmCsatDistribution: CRMDistributionResponse = {
+  total: 89,
+  items: [
+    { name: '1', count: 3, percentage: 3.4 },
+    { name: '2', count: 5, percentage: 5.6 },
+    { name: '3', count: 12, percentage: 13.5 },
+    { name: '4', count: 31, percentage: 34.8 },
+    { name: '5', count: 38, percentage: 42.7 },
+  ],
+}
+
+export const crmTicketLive: CRMExternalTicketResponse = {
+  ticket_id: 'TKT-4521',
+  estado: 'Progreso',
+  prioridad: 'Alta',
+  canal: 'Email',
+  asunto: 'Problema con pago de suscripción',
+  cliente_id: 8823,
+  cliente_nombre: 'María Fernández',
+  pago_id_ref: 'PAY-2026-00981',
+  salud_ref: undefined,
+  resolucion: undefined,
+  suscripcion_id_ref: 'SUB-2026-00312',
 }
 
 // Global KPIs for Overview

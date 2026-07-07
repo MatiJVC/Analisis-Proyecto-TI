@@ -7,7 +7,6 @@ import {
   notificationsAPI,
   iotAPI,
   incidentsAPI,
-  paymentsAPI,
   overviewAPI,
   inventoryAPI,
   crmAPI,
@@ -112,26 +111,6 @@ export function useIncidents() {
 }
 
 // Payments hooks
-export function usePaymentKPIs() {
-  return useSWR('payments-kpis', paymentsAPI.getKPIs, swrConfig)
-}
-
-export function usePaymentTimeline() {
-  return useSWR('payments-timeline', paymentsAPI.getTimeline, swrConfig)
-}
-
-export function usePaymentFailures(hours = 24, topN = 10) {
-  return useSWR(`payments-failures-${hours}-${topN}`, () => paymentsAPI.getFailures(hours, topN), swrConfig)
-}
-
-export function usePaymentConciliation(hours = 24) {
-  return useSWR(`payments-conciliation-${hours}`, () => paymentsAPI.getConciliation(hours), swrConfig)
-}
-
-export function usePaymentMethods(hours = 24) {
-  return useSWR(`payments-methods-${hours}`, () => paymentsAPI.getMethods(hours), swrConfig)
-}
-
 export function usePaymentDashboard() {
   return useSWR('payments-dashboard', auditoriaAPI.getDashboard, swrConfig)
 }
@@ -180,6 +159,22 @@ export function useCRMTickets() {
 
 export function useCRMSLA() {
   return useSWR('crm-sla', crmAPI.getSLA, swrConfig)
+}
+
+export function useCRMChannels() {
+  return useSWR('crm-channels', crmAPI.getChannels, swrConfig)
+}
+
+export function useCRMPriority() {
+  return useSWR('crm-priority', crmAPI.getPriority, swrConfig)
+}
+
+export function useCRMSourceProjects() {
+  return useSWR('crm-source-projects', crmAPI.getSourceProjects, swrConfig)
+}
+
+export function useCRMCsat() {
+  return useSWR('crm-csat', crmAPI.getCsatDistribution, swrConfig)
 }
 
 // Inventory hooks

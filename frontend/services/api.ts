@@ -151,28 +151,6 @@ export const incidentsAPI = {
   getList: () => fetchAPI("/v1/kpis/incidents/list", []),
 };
 
-// Payments API
-export const paymentsAPI = {
-  getKPIs: () => fetchAPI("/v1/analytics/payments/kpis", mockData.paymentKPIs),
-  getTimeline: () =>
-    fetchAPI("/v1/analytics/payments/timeline", mockData.paymentTimeline),
-  getFailures: (hours = 24, topN = 10) =>
-    fetchAPI(
-      `/v1/analytics/payments/failures?hours=${hours}&top_n=${topN}`,
-      mockData.paymentFailures,
-    ),
-  getConciliation: (hours = 24) =>
-    fetchAPI(
-      `/v1/analytics/payments/conciliation?hours=${hours}`,
-      mockData.paymentConciliation,
-    ),
-  getMethods: (hours = 24) =>
-    fetchAPI(
-      `/v1/analytics/payments/methods?hours=${hours}`,
-      mockData.paymentMethods,
-    ),
-};
-
 // Auditoría API
 async function postFetch<T>(endpoint: string): Promise<T> {
   if (!API_BASE_URL) {
@@ -229,6 +207,14 @@ export const crmAPI = {
     fetchAPI(`/v1/kpis/crm/timeline?days=${days}`, mockData.crmTimeline),
   getTickets: () => fetchAPI("/v1/kpis/crm/tickets", mockData.crmTickets),
   getSLA: () => fetchAPI("/v1/kpis/crm/sla", mockData.crmSLA),
+  getTicketLive: (ticketId: string) =>
+    fetchAPI(`/v1/kpis/crm/tickets/${ticketId}/live`, mockData.crmTicketLive),
+  getChannels: () => fetchAPI("/v1/kpis/crm/channels", mockData.crmChannels),
+  getPriority: () => fetchAPI("/v1/kpis/crm/priority", mockData.crmPriority),
+  getSourceProjects: () =>
+    fetchAPI("/v1/kpis/crm/source-projects", mockData.crmSourceProjects),
+  getCsatDistribution: () =>
+    fetchAPI("/v1/kpis/crm/csat", mockData.crmCsatDistribution),
 };
 
 // Inventory API

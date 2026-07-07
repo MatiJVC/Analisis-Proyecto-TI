@@ -247,49 +247,6 @@ export interface PaymentKPIs {
   uptime: number
 }
 
-export interface PaymentFailure {
-  reason: string
-  count: number
-  percentage: number
-}
-
-export interface PaymentFailuresResponse {
-  rejection_rate: number
-  total: number
-  failed: number
-  reasons: PaymentFailure[]
-}
-
-export interface ConciliationStatus {
-  status: string
-  count: number
-  percentage: number
-}
-
-export interface PaymentConciliationResponse {
-  statuses: ConciliationStatus[]
-  total: number
-  approval_rate: number
-}
-
-export interface PaymentTimeline {
-  date: string
-  successful: number
-  failed: number
-  amount: number
-}
-
-export interface PaymentMethodPoint {
-  name: string
-  value: number
-  count: number
-}
-
-export interface PaymentMethodsResponse {
-  methods: PaymentMethodPoint[]
-  total: number
-}
-
 // Logistics
 export interface LogisticsKPIs {
   activeRoutes: number
@@ -467,6 +424,33 @@ export interface CRMSLASummary {
   totalViolations: number
   criticalViolations: number
   slaComplianceRate: number
+}
+
+export interface CRMDistributionItem {
+  name: string
+  count: number
+  percentage: number
+}
+
+export interface CRMDistributionResponse {
+  total: number
+  items: CRMDistributionItem[]
+}
+
+// Espejo del TicketDto real del CRM externo (snake_case, no sigue la
+// convención camelCase del resto de la API — es un pass-through directo).
+export interface CRMExternalTicketResponse {
+  ticket_id: string
+  estado: string
+  prioridad?: string
+  canal?: string
+  asunto?: string
+  cliente_id?: number
+  cliente_nombre?: string
+  pago_id_ref?: string
+  salud_ref?: string
+  resolucion?: string
+  suscripcion_id_ref?: string
 }
 
 // ─── Pagos — Dashboard & Auditoría ───────────────────────────────────────────
