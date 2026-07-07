@@ -32,6 +32,4 @@ wheels/
 .DS_Store
 *.log
 *.db
-
-# Notas de trabajo personal — no commitear
 CLAUDE.md

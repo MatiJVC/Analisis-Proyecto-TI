@@ -125,6 +125,7 @@ def get_subscription_stats(db: Session, days: Optional[int] = None) -> dict:
     
     # Cancelaciones en el período
     cancel_query = db.query(func.count(FactSubscription.id)).filter(
+        func.lower(FactSubscription.status) == "cancelled",
         FactSubscription.end_date.isnot(None)
     )
     if cutoff_date:
@@ -136,19 +137,20 @@ def get_subscription_stats(db: Session, days: Optional[int] = None) -> dict:
     churn_rate = round((cancellations / churn_denominator) * 100, 2)
     
     # Lifetime Value: Tiempo promedio de suscripción en meses (cálculo en Python)
-    subs = db.query(FactSubscription.start_date, FactSubscription.end_date).filter(
-        (FactSubscription.end_date.isnot(None)) | (func.lower(FactSubscription.status) == "active")
+    subs = db.query(FactSubscription.start_date, FactSubscription.end_date, FactSubscription.status).filter(
+        func.lower(FactSubscription.status).in_(["active", "cancelled"])
     ).all()
     
     if subs:
         lifetimes = []
-        for start, end in subs:
+        for start, end, status in subs:
             if start:
-                end_date = end if end else datetime.now(tz=timezone.utc).date()
+                end_date = end if (status == "cancelled" and end) else datetime.now(tz=timezone.utc).date()
                 delta = (end_date - start).days
                 lifetimes.append(delta)
         avg_lifetime_days = sum(lifetimes) / len(lifetimes) if lifetimes else 0
         avg_lifetime_months = round(avg_lifetime_days / 30, 2)
+
     else:
         avg_lifetime_months = 0
     
@@ -213,16 +215,18 @@ def get_subscriptions_by_date(db: Session, days: int = 30) -> List[Dict]:
         cast(FactSubscription.updated_at, Date)
     ).all()
     
-    # Query para cancelaciones (end_date not null)
+    # Query para cancelaciones (status = 'cancelled' y end_date not null)
     cancellations_query = db.query(
         cast(FactSubscription.end_date, Date).label("date"),
         func.count(FactSubscription.id).label("count")
     ).filter(
+        func.lower(FactSubscription.status) == "cancelled",
         FactSubscription.end_date.isnot(None),
         FactSubscription.end_date >= cutoff_date.date()
     ).group_by(
         cast(FactSubscription.end_date, Date)
     ).all()
+
     
     # Consolidar en un diccionario por fecha
     timeline_dict = {}
@@ -288,14 +292,17 @@ def get_retention_rate(db: Session, period_days: int) -> float:
     
     # Una suscripción estaba activa en start_of_period si:
     # - fue creada antes o en esa fecha: created_at <= start_of_period
-    # - no fue cancelada antes: end_date IS NULL o end_date > start_of_period
+    # - sigue activa hoy O fue cancelada después de start_of_period: status == "active" o (status == "cancelled" y end_date > start_of_period)
     
     # Suscripciones que ESTABAN activas hace X días
     active_at_period = db.query(func.count(FactSubscription.id)).filter(
         FactSubscription.created_at <= start_of_period,
         or_(
-            FactSubscription.end_date.is_(None),
-            FactSubscription.end_date > start_of_period
+            func.lower(FactSubscription.status) == "active",
+            and_(
+                func.lower(FactSubscription.status) == "cancelled",
+                FactSubscription.end_date > start_of_period
+            )
         )
     ).scalar() or 0
     
@@ -305,15 +312,12 @@ def get_retention_rate(db: Session, period_days: int) -> float:
     # Suscripciones que SIGUEN ACTIVAS hoy de las que estaban activas hace X días
     # Deben cumplir:
     # - estaban activas en start_of_period (mismo filtro anterior)
-    # - siguen activas hoy: status == "active" O (end_date IS NULL O end_date > now)
+    # - siguen activas hoy: status == "active"
     retained = db.query(func.count(FactSubscription.id)).filter(
         FactSubscription.created_at <= start_of_period,
-        or_(
-            FactSubscription.end_date.is_(None),
-            FactSubscription.end_date > start_of_period
-        ),
         func.lower(FactSubscription.status) == "active"
     ).scalar() or 0
+
     
     retention_rate = (retained / active_at_period) * 100
     return round(retention_rate, 2)
