@@ -16,6 +16,7 @@ para que Analítica pueda detectar datos desactualizados en la conciliación.
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Annotated, Optional
 
@@ -42,6 +43,8 @@ from app.services.inventory_query_service import (
     get_products_thresholds,
     get_stock_status_summary,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/inventory",
@@ -82,7 +85,8 @@ async def get_kpis(db: Session = Depends(get_db)) -> InventoryKPIsResponse:
         return InventoryKPIsResponse(**kpis, generated_at=_now_utc_iso())
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
+        logger.exception("Error al obtener los KPIs de inventario")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al obtener los KPIs de inventario",
@@ -118,7 +122,8 @@ async def get_stock_status(db: Session = Depends(get_db)) -> InventoryStockStatu
         )
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
+        logger.exception("Error al obtener el resumen de estado de stock")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al obtener el resumen de estado de stock",
@@ -214,7 +219,8 @@ async def get_snapshot(
 
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
+        logger.exception("Error al obtener el snapshot de inventario")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al obtener el snapshot de inventario",
@@ -278,7 +284,8 @@ async def get_locations(
 
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
+        logger.exception("Error al obtener el catálogo de ubicaciones")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al obtener el catálogo de ubicaciones",
@@ -357,7 +364,8 @@ async def get_thresholds(
 
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
+        logger.exception("Error al obtener los umbrales de productos")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al obtener los umbrales de productos",

@@ -239,8 +239,39 @@ export const inventoryAPI = {
       (data: any) => data?.data ?? data,
     ),
   getWarehouseCapacity: () =>
-    fetchAPI("/v1/inventory/snapshot", mockData.warehouseCapacity).then(
-      (data: any) => data?.data ?? data,
+    fetchAPI("/v1/inventory/snapshot?limit=500", mockData.warehouseCapacity).then(
+      (data: any) => {
+        const rows = data?.data ?? data;
+        if (!Array.isArray(rows)) return rows;
+        // El snapshot viene por SKU×ubicación; el gráfico es por ubicación.
+        // Si las filas ya traen el shape agregado (mock offline), pasan tal cual.
+        if (rows.length === 0 || rows[0]?.physical_stock === undefined) {
+          return rows;
+        }
+        // Agregamos stock físico/reservado/disponible de todos los SKUs por ubicación.
+        const byLocation = new Map<string, any>();
+        for (const r of rows) {
+          const key = r.location_id;
+          const existing = byLocation.get(key);
+          if (existing) {
+            existing.stock += r.physical_stock ?? 0;
+            existing.reserved += r.reserved_stock ?? 0;
+            existing.available += r.available_stock ?? 0;
+          } else {
+            byLocation.set(key, {
+              location_id:   r.location_id,
+              location_code: r.location_code ?? r.location_id,
+              location_name: r.location_name ?? r.location_id,
+              location_type: r.location_type ?? "WAREHOUSE",
+              city:          r.city ?? null,
+              stock:         r.physical_stock ?? 0,
+              reserved:      r.reserved_stock ?? 0,
+              available:     r.available_stock ?? 0,
+            });
+          }
+        }
+        return Array.from(byLocation.values());
+      },
     ),
   getLowStockItems: () =>
     fetchAPI(

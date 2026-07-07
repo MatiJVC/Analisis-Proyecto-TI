@@ -134,9 +134,10 @@ function LowStockSkeleton() {
 
 function CapacityTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
-  const stock    = payload.find((p: any) => p.dataKey === 'stock')?.value ?? 0
-  const capacity = payload.find((p: any) => p.dataKey === 'capacity')?.value ?? 0
-  const pct      = capacity > 0 ? Math.round((stock / capacity) * 100) : 0
+  const row = payload[0]?.payload ?? {}
+  const stock       = row.stock ?? 0
+  const hasCapacity = typeof row.capacity === 'number' && row.capacity > 0
+  const pct         = hasCapacity ? Math.round((stock / row.capacity) * 100) : null
   return (
     <div
       className="rounded-lg border border-border bg-popover p-3 shadow-lg text-sm"
@@ -144,14 +145,28 @@ function CapacityTooltip({ active, payload, label }: any) {
     >
       <p className="font-semibold text-foreground mb-1">{label}</p>
       <p className="text-muted-foreground">
-        Stock actual: <span className="text-foreground font-medium">{stock.toLocaleString()}</span>
+        Stock físico: <span className="text-foreground font-medium">{stock.toLocaleString()}</span>
       </p>
-      <p className="text-muted-foreground">
-        Capacidad: <span className="text-foreground font-medium">{capacity.toLocaleString()}</span>
-      </p>
-      <p className="text-muted-foreground">
-        Utilización: <span className="font-medium" style={{ color: pct > 90 ? 'var(--destructive)' : pct > 75 ? 'var(--warning)' : 'var(--chart-1)' }}>{pct}%</span>
-      </p>
+      {typeof row.available === 'number' && (
+        <p className="text-muted-foreground">
+          Disponible: <span className="text-foreground font-medium">{row.available.toLocaleString()}</span>
+        </p>
+      )}
+      {typeof row.reserved === 'number' && (
+        <p className="text-muted-foreground">
+          Reservado: <span className="text-foreground font-medium">{row.reserved.toLocaleString()}</span>
+        </p>
+      )}
+      {hasCapacity && (
+        <>
+          <p className="text-muted-foreground">
+            Capacidad: <span className="text-foreground font-medium">{row.capacity.toLocaleString()}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Utilización: <span className="font-medium" style={{ color: pct! > 90 ? 'var(--destructive)' : pct! > 75 ? 'var(--warning)' : 'var(--chart-1)' }}>{pct}%</span>
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -239,8 +254,8 @@ export default function InventoryPage() {
             </div>
           ) : (
             <ChartCard
-              title="Capacidad por Ubicación"
-              description="Stock actual vs. capacidad máxima instalada"
+              title="Stock por Ubicación"
+              description="Stock físico agregado por ubicación (todos los SKUs)"
               className="lg:col-span-2"
               action={
                 <div className="flex items-center gap-2">

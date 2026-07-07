@@ -18,117 +18,151 @@ def _row_to_dict(row: Any) -> Dict[str, Any]:
 
 # ============================================================================
 #  §1  GET /inventory/snapshot
-#      Estado por (sku_id × location_id) con reserved_stock calculado
-#      desde fact_inventory_movements
+#      Estado por (sku_id × location_id). El stock físico se calcula desde
+#      fact_inventory_movements (received − dispatched + adjusted − transfer);
+#      si el par no tiene movimientos, cae al current_stock de la última alerta.
+#      El universo de filas es (movimientos ∪ alertas), enriquecido con
+#      dim_locations. reserved_stock se deriva de las reservas menos despachos.
 # ============================================================================
 
-_SQL_SNAPSHOT_DATA = text("""
-    WITH latest_alert AS (
-        SELECT DISTINCT ON (sku_id, location_id)
+# CTEs base compartidos por snapshot, KPIs y stock-status. Definen el stock
+# físico por (sku_id × location_id) calculado desde los movimientos, con
+# fallback al current_stock de la última alerta, sobre el universo de pares
+# (movimientos ∪ alertas). Cada endpoint agrega/formatea sobre stock_per_location.
+_STOCK_BASE_CTES = """
+    WITH physical_from_movements AS (
+        SELECT
             sku_id,
             location_id,
-            current_stock                                                   AS physical_stock,
-            threshold_limite                                                AS critical_threshold,
-            is_stock_out,
-            to_char(alert_at,    'YYYY-MM-DD"T"HH24:MI:SS"Z"')            AS last_movement_at,
-            to_char(ingested_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')            AS updated_at
-        FROM fact_inventory_alerts
-        ORDER BY sku_id, location_id, alert_at DESC
+            (
+                  COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_received'), 0)
+                - COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_dispatched'), 0)
+                + COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_adjusted'), 0)
+                - COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_transfer_initiated'), 0)
+            ) AS physical_stock,
+            MAX(movement_at) AS last_movement_at
+        FROM fact_inventory_movements
+        WHERE location_id IS NOT NULL
+        GROUP BY sku_id, location_id
     ),
     net_reservations AS (
         SELECT
             sku_id,
             location_id,
-            GREATEST(0,
-                COALESCE(SUM(quantity) FILTER (
-                    WHERE event_type = 'stock_reserved'
-                ), 0)
-                -
-                COALESCE(SUM(quantity) FILTER (
-                    WHERE event_type IN ('stock_dispatched', 'stock_released', 'reservation_cancelled')
-                    AND order_id IS NOT NULL
-                ), 0)
-            ) AS reserved_stock
+            GREATEST(0, COALESCE(SUM(quantity) FILTER (
+                WHERE event_type = 'stock_reserved'
+            ), 0) - COALESCE(SUM(quantity) FILTER (
+                WHERE event_type IN ('stock_dispatched', 'stock_released', 'reservation_cancelled')
+                AND order_id IS NOT NULL
+            ), 0)) AS reserved_stock
         FROM fact_inventory_movements
-        WHERE event_type IN (
-            'stock_reserved', 'stock_dispatched',
-            'stock_released', 'reservation_cancelled'
-        )
+        WHERE event_type IN ('stock_reserved', 'stock_dispatched', 'stock_released', 'reservation_cancelled')
         GROUP BY sku_id, location_id
-    )
-    SELECT
-        a.sku_id,
-        a.location_id,
-        a.physical_stock,
-        COALESCE(r.reserved_stock, 0)                                       AS reserved_stock,
-        GREATEST(0, a.physical_stock - COALESCE(r.reserved_stock, 0))       AS available_stock,
-        a.critical_threshold,
-        a.is_stock_out,
-        CASE
-            WHEN a.is_stock_out = TRUE OR a.physical_stock = 0 THEN 'OUT_OF_STOCK'
-            WHEN a.physical_stock <= a.critical_threshold       THEN 'CRITICAL'
-            ELSE                                                     'NORMAL'
-        END                                                                  AS stock_status,
-        a.last_movement_at,
-        a.updated_at
-    FROM latest_alert a
-    LEFT JOIN net_reservations r USING (sku_id, location_id)
-    WHERE (CAST(:sku_id AS TEXT)       IS NULL OR a.sku_id      = CAST(:sku_id AS TEXT))
-    AND   (CAST(:location_id AS TEXT)  IS NULL OR a.location_id = CAST(:location_id AS TEXT))
-    AND   (CAST(:stock_status AS TEXT) IS NULL OR
-           CASE
-               WHEN a.is_stock_out = TRUE OR a.physical_stock = 0 THEN 'OUT_OF_STOCK'
-               WHEN a.physical_stock <= a.critical_threshold       THEN 'CRITICAL'
-               ELSE                                                     'NORMAL'
-           END = CAST(:stock_status AS TEXT))
-    ORDER BY a.sku_id ASC, a.location_id ASC
-    LIMIT  :limit
-    OFFSET :offset
-""")
-
-_SQL_SNAPSHOT_COUNT = text("""
-    WITH latest_alert AS (
+    ),
+    latest_alert AS (
         SELECT DISTINCT ON (sku_id, location_id)
             sku_id,
             location_id,
             current_stock,
             threshold_limite,
-            is_stock_out
+            is_stock_out,
+            alert_at
         FROM fact_inventory_alerts
+        WHERE location_id IS NOT NULL
         ORDER BY sku_id, location_id, alert_at DESC
+    ),
+    universe AS (
+        SELECT sku_id, location_id FROM physical_from_movements
+        UNION
+        SELECT sku_id, location_id FROM latest_alert
+    ),
+    stock_per_location AS (
+        SELECT
+            u.sku_id,
+            u.location_id,
+            COALESCE(m.physical_stock, la.current_stock, 0)  AS physical_stock,
+            COALESCE(r.reserved_stock, 0)                    AS reserved_stock,
+            GREATEST(0, COALESCE(m.physical_stock, la.current_stock, 0)
+                        - COALESCE(r.reserved_stock, 0))     AS available_stock,
+            COALESCE(la.threshold_limite, 0)                 AS critical_threshold,
+            COALESCE(la.is_stock_out, FALSE)                 AS is_stock_out,
+            CASE
+                WHEN COALESCE(la.is_stock_out, FALSE)
+                     OR COALESCE(m.physical_stock, la.current_stock, 0) = 0 THEN 'OUT_OF_STOCK'
+                WHEN COALESCE(m.physical_stock, la.current_stock, 0)
+                     <= COALESCE(la.threshold_limite, 0)                    THEN 'CRITICAL'
+                ELSE                                                             'NORMAL'
+            END                                              AS stock_status,
+            m.last_movement_at                               AS last_movement_at,
+            la.alert_at                                      AS alert_at
+        FROM universe u
+        LEFT JOIN physical_from_movements m USING (sku_id, location_id)
+        LEFT JOIN net_reservations       r USING (sku_id, location_id)
+        LEFT JOIN latest_alert          la USING (sku_id, location_id)
     )
-    SELECT COUNT(*)
-    FROM latest_alert
-    WHERE (CAST(:sku_id AS TEXT)       IS NULL OR sku_id      = CAST(:sku_id AS TEXT))
-    AND   (CAST(:location_id AS TEXT)  IS NULL OR location_id = CAST(:location_id AS TEXT))
-    AND   (CAST(:stock_status AS TEXT) IS NULL OR
-           CASE
-               WHEN is_stock_out = TRUE OR current_stock = 0 THEN 'OUT_OF_STOCK'
-               WHEN current_stock <= threshold_limite         THEN 'CRITICAL'
-               ELSE                                               'NORMAL'
-           END = CAST(:stock_status AS TEXT))
-""")
+"""
+
+# snapshot_rows enriquece stock_per_location con dim_locations y formatea fechas.
+_SNAPSHOT_ROWS_CTE = """
+    , snapshot_rows AS (
+        SELECT
+            s.sku_id,
+            s.location_id,
+            s.location_id                                    AS location_code,
+            COALESCE(dl.location_name, s.location_id)        AS location_name,
+            COALESCE(dl.location_type, 'WAREHOUSE')          AS location_type,
+            dl.city,
+            'Chile'                                          AS country,
+            s.physical_stock,
+            s.reserved_stock,
+            s.available_stock,
+            s.critical_threshold,
+            s.stock_status,
+            to_char(COALESCE(s.last_movement_at, s.alert_at),
+                    'YYYY-MM-DD"T"HH24:MI:SS"Z"')            AS last_movement_at,
+            to_char(COALESCE(s.alert_at, s.last_movement_at),
+                    'YYYY-MM-DD"T"HH24:MI:SS"Z"')            AS updated_at
+        FROM stock_per_location s
+        LEFT JOIN dim_locations dl ON dl.location_id = s.location_id
+    )
+"""
 
 
 def get_inventory_snapshot(
     db:            Session,
     sku_id:        Optional[str],
     location_id:   Optional[str],
-    location_type: Optional[str],   # no disponible sin tabla locations
+    location_type: Optional[str],
     stock_status:  Optional[str],
     limit:         int,
     offset:        int,
 ) -> Tuple[List[Dict[str, Any]], int]:
-    params = {
-        "sku_id":       sku_id       or None,
-        "location_id":  location_id  or None,
-        "stock_status": stock_status or None,
-        "limit":        limit,
-        "offset":       offset,
-    }
-    total = db.execute(_SQL_SNAPSHOT_COUNT, params).scalar_one()
-    rows  = db.execute(_SQL_SNAPSHOT_DATA,  params).fetchall()
-    return [_row_to_dict(r) for r in rows], total
+    conditions = []
+    params: Dict[str, Any] = {"limit": limit, "offset": offset}
+
+    if sku_id:
+        conditions.append("sku_id = :sku_id")
+        params["sku_id"] = sku_id
+    if location_id:
+        conditions.append("location_id = :location_id")
+        params["location_id"] = location_id
+    if stock_status:
+        conditions.append("stock_status = :stock_status")
+        params["stock_status"] = stock_status
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    base = _STOCK_BASE_CTES + _SNAPSHOT_ROWS_CTE
+    data_sql = (
+        base
+        + f" SELECT * FROM snapshot_rows {where_clause} "
+        + "ORDER BY sku_id ASC, location_id ASC LIMIT :limit OFFSET :offset"
+    )
+    count_sql = base + f" SELECT COUNT(*) FROM snapshot_rows {where_clause}"
+
+    total = db.execute(text(count_sql), params).scalar_one()
+    rows = db.execute(text(data_sql), params).fetchall()
+    return [_row_to_dict(r) for r in rows], int(total)
 
 
 # ============================================================================
@@ -287,55 +321,41 @@ def get_products_thresholds(
 #      turnover_rate    desde fact_inventory_movements
 # ============================================================================
 
-_SQL_KPI_SKUS = text("""
-    WITH latest_per_location AS (
-        SELECT DISTINCT ON (sku_id, location_id)
-            sku_id,
-            current_stock,
-            threshold_limite
-        FROM fact_inventory_alerts
-        ORDER BY sku_id, location_id, alert_at DESC
-    ),
-    stock_por_sku AS (
+_SQL_KPI_SKUS = text(_STOCK_BASE_CTES + """
+    , per_sku AS (
         SELECT
-            l.sku_id,
-            SUM(l.current_stock)                                                    AS total_available,
-            SUM(l.current_stock * COALESCE(p.unit_price, 0::numeric))               AS stock_value,
-            MAX(l.threshold_limite)                                                 AS threshold
-        FROM latest_per_location l
-        LEFT JOIN dim_products p ON p.sku_id = l.sku_id
-        GROUP BY l.sku_id
+            spl.sku_id,
+            SUM(spl.physical_stock)                                       AS total_available,
+            SUM(spl.physical_stock * COALESCE(p.unit_price, 0::numeric))  AS stock_value,
+            MAX(spl.critical_threshold)                                   AS threshold
+        FROM stock_per_location spl
+        LEFT JOIN dim_products p ON p.sku_id = spl.sku_id
+        GROUP BY spl.sku_id
     )
     SELECT
         COUNT(*)                                              AS total_skus,
         COALESCE(SUM(stock_value), 0)                         AS total_stock_value,
         COUNT(*) FILTER (WHERE total_available <= threshold)  AS low_stock_count,
         COUNT(*) FILTER (WHERE total_available = 0)           AS out_of_stock_count
-    FROM stock_por_sku
+    FROM per_sku
 """)
 
-_SQL_KPI_WAREHOUSES = text("""
+_SQL_KPI_WAREHOUSES = text(_STOCK_BASE_CTES + """
     SELECT COUNT(DISTINCT location_id) AS warehouses_count
-    FROM fact_inventory_alerts
-    WHERE location_id IS NOT NULL
+    FROM stock_per_location
 """)
 
-_SQL_KPI_TURNOVER = text("""
-    WITH dispatched AS (
+_SQL_KPI_TURNOVER = text(_STOCK_BASE_CTES + """
+    , dispatched AS (
         SELECT COALESCE(SUM(quantity), 0)::float AS total_dispatched
         FROM fact_inventory_movements
         WHERE event_type = 'stock_dispatched'
         AND   quantity IS NOT NULL
     ),
     avg_inv AS (
-        SELECT COALESCE(AVG(current_stock), 0)::float AS avg_stock
-        FROM (
-            SELECT DISTINCT ON (sku_id, location_id)
-                current_stock
-            FROM fact_inventory_alerts
-            ORDER BY sku_id, location_id, alert_at DESC
-        ) latest
-        WHERE current_stock > 0
+        SELECT COALESCE(AVG(physical_stock), 0)::float AS avg_stock
+        FROM stock_per_location
+        WHERE physical_stock > 0
     )
     SELECT
         CASE
@@ -373,23 +393,14 @@ def get_inventory_kpis(db: Session) -> Dict[str, Any]:
 #  §5  GET /inventory/stock-status
 # ============================================================================
 
-_SQL_STOCK_STATUS = text("""
-    WITH latest_per_location AS (
-        SELECT DISTINCT ON (sku_id, location_id)
-            sku_id,
-            current_stock,
-            threshold_limite,
-            is_stock_out
-        FROM fact_inventory_alerts
-        ORDER BY sku_id, location_id, alert_at DESC
-    ),
-    stock_por_sku AS (
+_SQL_STOCK_STATUS = text(_STOCK_BASE_CTES + """
+    , stock_por_sku AS (
         SELECT
             sku_id,
-            SUM(current_stock)    AS total_available,
-            MAX(threshold_limite) AS threshold,
-            BOOL_OR(is_stock_out) AS any_stock_out
-        FROM latest_per_location
+            SUM(physical_stock)     AS total_available,
+            MAX(critical_threshold) AS threshold,
+            BOOL_OR(is_stock_out)   AS any_stock_out
+        FROM stock_per_location
         GROUP BY sku_id
     ),
     classified AS (

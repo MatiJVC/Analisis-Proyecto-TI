@@ -354,8 +354,13 @@ export interface WarehouseCapacity {
   location_type: LocationType
   city:          string | null
   stock:         number
-  capacity:      number
-  utilization:   number
+  // reserved/available provienen del snapshot real (agregado por ubicación).
+  // capacity/utilization solo existen en los datos mock (no hay fuente de
+  // capacidad instalada en el módulo de inventario todavía) → opcionales.
+  reserved?:     number
+  available?:    number
+  capacity?:     number
+  utilization?:  number
 }
 
 export interface LowStockItem {
