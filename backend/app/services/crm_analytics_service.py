@@ -28,7 +28,10 @@ _CANAL_CANON = {
 # de modo que los conteos incluyan también los tickets históricos en minúscula.
 _CRITICAL_PRIORITIES_LOWER = ("alta", "crítica", "critica")
 _OPEN_STATES_LOWER = ("abierto", "progreso")
-_CLOSED_STATE_LOWER = "cerrado"
+# Un ticket "resuelto" (con resolución) o "cerrado" (sin resolución) ya está
+# atendido — ambos cuentan como resuelto para la tasa de resolución. Son
+# estados terminales alternativos en el modelo real del CRM externo.
+_RESOLVED_STATES_LOWER = ("resuelto", "cerrado")
 
 
 def _canon(value: Optional[str], mapping: Dict[str, str]) -> Optional[str]:
@@ -81,7 +84,7 @@ def get_crm_kpis(db: Session) -> Dict[str, Any]:
     )
 
     resolved = db.query(func.count(FactTicket.id)).filter(
-        func.lower(FactTicket.estado) == _CLOSED_STATE_LOWER
+        func.lower(FactTicket.estado).in_(_RESOLVED_STATES_LOWER)
     ).scalar() or 0
     total = db.query(func.count(FactTicket.id)).scalar() or 1
     resolution_rate = round((resolved / total) * 100, 1)

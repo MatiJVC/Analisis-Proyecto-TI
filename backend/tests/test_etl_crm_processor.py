@@ -146,14 +146,28 @@ class TestHandleTicketAsignado:
         assert existing_ticket.estado == "Progreso"
         assert db.flush.called
 
-    def test_asignado_rechaza_si_ya_en_progreso(self):
-        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+    def test_asignado_desde_progreso_permitido(self):
+        # Relajación (jul-2026): asignar/reasignar un ticket ya en Progreso es
+        # válido, no se descarta el evento.
+        from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
         existing_ticket.estado = "Progreso"
         existing_ticket.ticket_id = "T-003"
 
         db = _make_db(query_result=existing_ticket)
         raw = _make_raw_event("ticket.asignado", {"ticket_id": "T-003"})
+        process_crm_event(db, raw)
+        assert existing_ticket.estado == "Progreso"
+
+    def test_asignado_rechaza_desde_terminal(self):
+        # No se reabre un ticket terminal (Cerrado) vía asignado.
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Cerrado"
+        existing_ticket.ticket_id = "T-003b"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.asignado", {"ticket_id": "T-003b"})
         with pytest.raises(CRMProcessingError, match="Transición inválida"):
             process_crm_event(db, raw)
 
@@ -181,16 +195,19 @@ class TestHandleTicketEscalado:
 
         assert existing_ticket.prioridad == "Crítica"
 
-    def test_escalado_rechaza_si_abierto(self):
-        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+    def test_escalado_desde_abierto_permitido(self):
+        # Relajación (jul-2026): escalar un ticket aún Abierto es válido (solo
+        # ajusta prioridad, no cambia estado).
+        from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
         existing_ticket.estado = "Abierto"
+        existing_ticket.prioridad = "Media"
         existing_ticket.ticket_id = "T-004"
 
         db = _make_db(query_result=existing_ticket)
-        raw = _make_raw_event("ticket.escalado", {"ticket_id": "T-004"})
-        with pytest.raises(CRMProcessingError, match="Transición inválida"):
-            process_crm_event(db, raw)
+        raw = _make_raw_event("ticket.escalado", {"ticket_id": "T-004", "prioridad_al_escalar": "Alta"})
+        process_crm_event(db, raw)
+        assert existing_ticket.prioridad == "Alta"
 
     def test_escalado_rechaza_ticket_inexistente(self):
         from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
@@ -242,14 +259,29 @@ class TestHandleTicketResuelto:
         process_crm_event(db, raw)
         assert existing_ticket.resolved_at is not None
 
-    def test_resuelto_rechaza_si_abierto(self):
-        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+    def test_resuelto_desde_abierto_permitido(self):
+        # Relajación (fix jul-2026): el CRM externo puede resolver saltando
+        # Progreso. Antes se descartaba y el ticket quedaba Abierto para siempre.
+        from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
         existing_ticket.estado = "Abierto"
+        existing_ticket.within_sla = None
         existing_ticket.ticket_id = "T-005c"
 
         db = _make_db(query_result=existing_ticket)
         raw = _make_raw_event("ticket.resuelto", {"ticket_id": "T-005c"})
+        process_crm_event(db, raw)
+        assert existing_ticket.estado == "Resuelto"
+
+    def test_resuelto_rechaza_desde_cerrado(self):
+        # No se "resuelve" un ticket ya terminal (Cerrado).
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Cerrado"
+        existing_ticket.ticket_id = "T-005d"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.resuelto", {"ticket_id": "T-005d"})
         with pytest.raises(CRMProcessingError, match="Transición inválida"):
             process_crm_event(db, raw)
 
@@ -276,14 +308,28 @@ class TestHandleTicketCerrado:
         assert existing_ticket.estado == "Cerrado"
         assert existing_ticket.csat_score == 5
 
-    def test_cerrado_rechaza_si_en_progreso(self):
-        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+    def test_cerrado_desde_progreso_permitido(self):
+        # Relajación (jul-2026): "cerrado" es terminal alternativo, puede venir
+        # directo desde Progreso sin pasar por Resuelto (modelo real del CRM).
+        from app.etl.processors.crm_processor import process_crm_event
         existing_ticket = MagicMock()
         existing_ticket.estado = "Progreso"
         existing_ticket.ticket_id = "T-006b"
 
         db = _make_db(query_result=existing_ticket)
-        raw = _make_raw_event("ticket.cerrado", {"ticket_id": "T-006b"})
+        raw = _make_raw_event("ticket.cerrado", {"ticket_id": "T-006b", "csat_score": 4})
+        process_crm_event(db, raw)
+        assert existing_ticket.estado == "Cerrado"
+
+    def test_cerrado_rechaza_desde_cerrado(self):
+        # No se re-cierra un ticket ya Cerrado (terminal).
+        from app.etl.processors.crm_processor import process_crm_event, CRMProcessingError
+        existing_ticket = MagicMock()
+        existing_ticket.estado = "Cerrado"
+        existing_ticket.ticket_id = "T-006c"
+
+        db = _make_db(query_result=existing_ticket)
+        raw = _make_raw_event("ticket.cerrado", {"ticket_id": "T-006c"})
         with pytest.raises(CRMProcessingError, match="Transición inválida"):
             process_crm_event(db, raw)
 

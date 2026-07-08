@@ -15,13 +15,25 @@ class CRMProcessingError(Exception):
     pass
 
 
-# Transiciones válidas: event_type → estados de origen permitidos
-# Solo los eventos que cambian estado de un ticket existente están aquí.
+# Transiciones válidas: event_type → estados de origen permitidos.
+#
+# Relajación de transiciones (jul-2026): el modelo real del CRM externo es
+# abierto → en progreso → {resuelto | cerrado}, donde resuelto (con resolución)
+# y cerrado (sin resolución) son estados terminales ALTERNATIVOS — cerrado NO
+# viene necesariamente tras resuelto. Además el CRM externo puede saltar el paso
+# de "asignado"/Progreso (ej. crear y resolver directo). La lectura rígida
+# anterior (`resuelto` solo desde Progreso, `cerrado` solo desde Resuelto)
+# rechazaba esas transiciones reales con CRMProcessingError, que _run_etl trata
+# como error de validación permanente y DESCARTA el evento → el ticket quedaba
+# Abierto para siempre en el warehouse aunque en el CRM externo estuviera
+# resuelto/cerrado (desajuste visible: KPIs de resolución en 0 mientras el
+# query en vivo mostraba Resuelto/Cerrado). Se aceptan saltos hacia adelante;
+# se sigue rechazando lo backward/sin sentido (reabrir un terminal).
 _VALID_TRANSITIONS: Dict[str, tuple] = {
-    "ticket.asignado": ("Abierto",),
-    "ticket.escalado": ("Progreso",),
-    "ticket.resuelto": ("Progreso",),
-    "ticket.cerrado":  ("Resuelto",),
+    "ticket.asignado": ("Abierto", "Progreso"),
+    "ticket.escalado": ("Abierto", "Progreso"),
+    "ticket.resuelto": ("Abierto", "Progreso"),
+    "ticket.cerrado":  ("Abierto", "Progreso", "Resuelto"),
 }
 
 # ---------------------------------------------------------------------------
