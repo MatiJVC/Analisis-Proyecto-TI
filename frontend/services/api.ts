@@ -263,7 +263,7 @@ export const inventoryAPI = {
     fetchAPI(
       "/v1/inventory/products/thresholds?below_threshold=true",
       mockData.lowStockItems,
-    ),
+    ).then((data: any) => data?.data ?? data),
   getLocationsCatalog: (locationType?: string) =>
     fetchAPI(
       `/v1/inventory/locations/catalog${locationType ? `?location_type=${locationType}` : ""}`,
