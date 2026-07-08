@@ -57,9 +57,13 @@ const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
   RETAIL_POINT:        'Punto de Venta',
 }
 
+// DISTRIBUTION_CENTER usa --chart-5 (no --chart-2): --chart-2 es un navy casi tan
+// oscuro como --chart-1, así que en el gráfico de barras "Bodega" y "Centro
+// Distribución" se veían del mismo color. --chart-5 mantiene el mismo ramp de la
+// app pero con máxima separación de luminosidad frente a --chart-1.
 const LOCATION_TYPE_COLOR: Record<LocationType, string> = {
   WAREHOUSE:           'var(--chart-1)',
-  DISTRIBUTION_CENTER: 'var(--chart-2)',
+  DISTRIBUTION_CENTER: 'var(--chart-5)',
   RETAIL_POINT:        'var(--chart-3)',
 }
 
