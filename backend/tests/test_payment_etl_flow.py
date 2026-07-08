@@ -25,6 +25,7 @@ from app.models.raw.raw_events import RawEvent
 from app.pagos.models.dim_estados_conciliacion import DimEstadosConciliacion
 from app.pagos.models.fact_pagos import FactPagos
 from app.pagos.models.fact_payments_events import FactPaymentsEvent
+from app.pagos.models.fact_sla_events import FactSlaEvent
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -461,3 +462,58 @@ class TestFlujoValidacion:
         fact = _fact_from_db_add(db)
         assert fact.timestamp_evento is not None
         assert fact.timestamp_evento.tzinfo is not None
+
+
+# ─── Flujo SLA: downtime/degradación → FactSlaEvent ───────────────────────────
+
+class TestFlujoSlaEvents:
+
+    def test_downtime_iniciado_escribe_fact_sla_event(self, db):
+        raw = _make_raw_event("downtime_iniciado", {
+            "descripcion": "Caída del proveedor de pagos",
+            "timestamp": "2026-07-08T10:00:00Z",
+        })
+
+        process_payment_event(db, raw)
+
+        calls = [
+            call[0][0] for call in db.add.call_args_list
+            if isinstance(call[0][0], FactSlaEvent)
+        ]
+        assert len(calls) == 1
+        evento = calls[0]
+        assert evento.tipo == "downtime"
+        assert evento.timestamp_fin is None
+        assert evento.timestamp_inicio == datetime(2026, 7, 8, 10, 0, tzinfo=timezone.utc)
+        assert evento.descripcion == "Caída del proveedor de pagos"
+
+    def test_degradacion_iniciada_usa_tipo_degraded(self, db):
+        raw = _make_raw_event("degradacion_iniciada", {"timestamp": "2026-07-08T10:00:00Z"})
+
+        process_payment_event(db, raw)
+
+        calls = [
+            call[0][0] for call in db.add.call_args_list
+            if isinstance(call[0][0], FactSlaEvent)
+        ]
+        assert calls[0].tipo == "degraded"
+
+    def test_downtime_finalizado_cierra_evento_abierto(self, db):
+        evento_abierto = FactSlaEvent(
+            tipo="downtime",
+            timestamp_inicio=datetime(2026, 7, 8, 10, 0, tzinfo=timezone.utc),
+        )
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = evento_abierto
+        raw = _make_raw_event("downtime_finalizado", {"timestamp": "2026-07-08T10:05:30Z"})
+
+        process_payment_event(db, raw)
+
+        assert evento_abierto.timestamp_fin == datetime(2026, 7, 8, 10, 5, 30, tzinfo=timezone.utc)
+        assert evento_abierto.duracion_segundos == 330
+
+    def test_downtime_finalizado_sin_evento_abierto_lanza_valueerror(self, db):
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        raw = _make_raw_event("downtime_finalizado", {"timestamp": "2026-07-08T10:05:30Z"})
+
+        with pytest.raises(ValueError, match="downtime"):
+            process_payment_event(db, raw)

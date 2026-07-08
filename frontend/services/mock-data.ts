@@ -677,6 +677,7 @@ export const crmSLA: CRMSLASummary = {
   totalViolations:    8,
   criticalViolations: 2,
   slaComplianceRate:  94.5,
+  ticketsEvaluated:   145,
 }
 
 export const crmChannels: CRMDistributionResponse = {

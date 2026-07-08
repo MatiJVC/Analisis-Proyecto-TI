@@ -46,6 +46,7 @@ _SLA_DATA = {
     "totalViolations":    5,
     "criticalViolations": 2,
     "slaComplianceRate":  96.8,
+    "ticketsEvaluated":   120,
 }
 
 

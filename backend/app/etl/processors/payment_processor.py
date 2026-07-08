@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.raw.raw_events import RawEvent
 from app.pagos.models.fact_pagos import FactPagos
 from app.pagos.models.fact_payments_events import FactPaymentsEvent
+from app.pagos.models.fact_sla_events import FactSlaEvent
 from app.pagos.models.dim_error_codes import get_error_code_id
 from app.pagos.services.payment_service import get_or_create_estado, confirm_payment, _hash_token
 
@@ -36,9 +37,67 @@ def _resolve_status_name(event_type: str, error_code: Optional[str]) -> str:
     return "esperando_revisión"
 
 
+_SLA_TIPO_POR_EVENTO = {
+    "downtime_iniciado": "downtime",
+    "downtime_finalizado": "downtime",
+    "degradacion_iniciada": "degraded",
+    "degradacion_finalizada": "degraded",
+}
+_SLA_EVENTOS_INICIO = ("downtime_iniciado", "degradacion_iniciada")
+_SLA_EVENTOS_FIN = ("downtime_finalizado", "degradacion_finalizada")
+
+
 def process_payment_event(db: Session, raw_event: RawEvent) -> None:
     if raw_event.event_type == "pago_reembolsado":
         logger.info("PAYMENT-ETL pago_reembolsado registrado en raw_events — sin acción warehouse: event_id=%s", raw_event.event_id)
+        return
+
+    if raw_event.event_type in _SLA_EVENTOS_INICIO:
+        payload = raw_event.payload or {}
+        tipo = _SLA_TIPO_POR_EVENTO[raw_event.event_type]
+        raw_ts = payload.get("timestamp")
+        if raw_ts:
+            try:
+                inicio = datetime.fromisoformat(str(raw_ts).replace("Z", "+00:00"))
+            except Exception:
+                inicio = datetime.now(tz=timezone.utc)
+        else:
+            inicio = datetime.now(tz=timezone.utc)
+        db.add(FactSlaEvent(
+            timestamp_inicio=inicio,
+            tipo=tipo,
+            descripcion=payload.get("descripcion"),
+        ))
+        db.flush()
+        logger.info("PAYMENT-ETL %s registrado: tipo=%s inicio=%s", raw_event.event_type, tipo, inicio)
+        return
+
+    if raw_event.event_type in _SLA_EVENTOS_FIN:
+        payload = raw_event.payload or {}
+        tipo = _SLA_TIPO_POR_EVENTO[raw_event.event_type]
+        raw_ts = payload.get("timestamp")
+        if raw_ts:
+            try:
+                fin = datetime.fromisoformat(str(raw_ts).replace("Z", "+00:00"))
+            except Exception:
+                fin = datetime.now(tz=timezone.utc)
+        else:
+            fin = datetime.now(tz=timezone.utc)
+        evento_abierto = (
+            db.query(FactSlaEvent)
+            .filter(FactSlaEvent.tipo == tipo, FactSlaEvent.timestamp_fin.is_(None))
+            .order_by(FactSlaEvent.timestamp_inicio.desc())
+            .first()
+        )
+        if evento_abierto is None:
+            raise ValueError(f"No hay un evento SLA de tipo '{tipo}' abierto para cerrar")
+        evento_abierto.timestamp_fin = fin
+        evento_abierto.duracion_segundos = max(0, int((fin - evento_abierto.timestamp_inicio).total_seconds()))
+        db.flush()
+        logger.info(
+            "PAYMENT-ETL %s registrado: tipo=%s fin=%s duracion=%ss",
+            raw_event.event_type, tipo, fin, evento_abierto.duracion_segundos,
+        )
         return
 
     if raw_event.event_type == "confirmar_pago":

@@ -424,6 +424,7 @@ export interface CRMSLASummary {
   totalViolations: number
   criticalViolations: number
   slaComplianceRate: number
+  ticketsEvaluated: number
 }
 
 export interface CRMDistributionItem {

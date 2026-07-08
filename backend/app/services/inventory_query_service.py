@@ -222,56 +222,32 @@ def get_locations_catalog(
 #      Agrega por sku_id con metadata real de dim_products y reserved_stock
 # ============================================================================
 
-_SQL_THRESHOLDS = text("""
-    WITH latest_per_location AS (
-        SELECT DISTINCT ON (sku_id, location_id)
-            sku_id,
-            location_id,
-            current_stock,
-            threshold_limite,
-            alert_at
-        FROM fact_inventory_alerts
-        ORDER BY sku_id, location_id, alert_at DESC
-    ),
-    net_reservations AS (
+# Se construye sobre _STOCK_BASE_CTES (movimientos ∪ alertas) — mismo universo de
+# stock que /kpis y /stock-status — en vez de leer solo de fact_inventory_alerts.
+# Así la lista de "stock bajo" ve los SKUs que solo tienen movimientos (sin fila de
+# alerta), que antes quedaban invisibles pese a contar en los KPIs. La clasificación
+# usa stock físico para cuadrar con low_stock_count/out_of_stock_count de _SQL_KPI_SKUS.
+_SQL_THRESHOLDS = text(_STOCK_BASE_CTES + """
+    , stock_por_sku AS (
         SELECT
-            sku_id,
-            GREATEST(0,
-                COALESCE(SUM(quantity) FILTER (
-                    WHERE event_type = 'stock_reserved'
-                ), 0)
-                -
-                COALESCE(SUM(quantity) FILTER (
-                    WHERE event_type IN ('stock_dispatched', 'stock_released', 'reservation_cancelled')
-                    AND order_id IS NOT NULL
-                ), 0)
-            ) AS reserved_stock
-        FROM fact_inventory_movements
-        WHERE event_type IN (
-            'stock_reserved', 'stock_dispatched',
-            'stock_released', 'reservation_cancelled'
-        )
-        GROUP BY sku_id
-    ),
-    stock_por_sku AS (
-        SELECT
-            l.sku_id,
-            COALESCE(p.product_name, l.sku_id)                             AS product_name,
-            COALESCE(p.category,     'Sin categoría')                      AS category,
-            COALESCE(p.unit,         'unidad')                             AS unit,
-            MAX(l.threshold_limite)                                        AS critical_threshold,
-            SUM(l.current_stock)                                           AS total_physical_stock,
-            COALESCE(MAX(r.reserved_stock), 0)                             AS total_reserved_stock,
-            GREATEST(0, SUM(l.current_stock) - COALESCE(MAX(r.reserved_stock), 0))
-                                                                           AS total_available_stock,
-            COUNT(DISTINCT l.location_id)                                  AS locations_count,
-            to_char(MAX(l.alert_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')       AS last_updated
-        FROM latest_per_location l
-        LEFT JOIN dim_products p ON p.sku_id = l.sku_id
-        LEFT JOIN net_reservations r ON r.sku_id = l.sku_id
+            spl.sku_id,
+            COALESCE(p.product_name, spl.sku_id)                          AS product_name,
+            COALESCE(p.category,     'Sin categoría')                     AS category,
+            COALESCE(p.unit,         'unidad')                            AS unit,
+            MAX(spl.critical_threshold)                                   AS critical_threshold,
+            GREATEST(0, SUM(spl.physical_stock))                          AS total_physical_stock,
+            SUM(spl.reserved_stock)                                       AS total_reserved_stock,
+            SUM(spl.available_stock)                                      AS total_available_stock,
+            COUNT(DISTINCT spl.location_id)                               AS locations_count,
+            (SUM(spl.physical_stock) <= MAX(spl.critical_threshold))      AS is_below_threshold,
+            (SUM(spl.physical_stock) = 0 OR BOOL_OR(spl.is_stock_out))    AS is_out_of_stock,
+            to_char(MAX(COALESCE(spl.alert_at, spl.last_movement_at)),
+                    'YYYY-MM-DD"T"HH24:MI:SS"Z"')                         AS last_updated
+        FROM stock_per_location spl
+        LEFT JOIN dim_products p ON p.sku_id = spl.sku_id
         WHERE (CAST(:sku_id AS TEXT) IS NULL
-               OR l.sku_id ILIKE '%' || CAST(:sku_id AS TEXT) || '%')
-        GROUP BY l.sku_id, p.product_name, p.category, p.unit
+               OR spl.sku_id ILIKE '%' || CAST(:sku_id AS TEXT) || '%')
+        GROUP BY spl.sku_id, p.product_name, p.category, p.unit
     )
     SELECT
         sku_id,
@@ -283,17 +259,18 @@ _SQL_THRESHOLDS = text("""
         total_reserved_stock,
         total_available_stock,
         locations_count,
-        (total_available_stock <= critical_threshold)                       AS is_below_threshold,
-        (total_available_stock = 0)                                         AS is_out_of_stock,
+        is_below_threshold,
+        is_out_of_stock,
         last_updated
     FROM stock_por_sku
-    WHERE CAST(:below_threshold AS BOOLEAN) IS NULL
-    OR (CAST(:below_threshold AS BOOLEAN) = TRUE  AND total_available_stock <= critical_threshold)
-    OR (CAST(:below_threshold AS BOOLEAN) = FALSE AND total_available_stock >  critical_threshold)
+    WHERE (CAST(:category AS TEXT) IS NULL OR category = CAST(:category AS TEXT))
+    AND (CAST(:below_threshold AS BOOLEAN) IS NULL
+         OR (CAST(:below_threshold AS BOOLEAN) = TRUE  AND is_below_threshold)
+         OR (CAST(:below_threshold AS BOOLEAN) = FALSE AND NOT is_below_threshold))
     ORDER BY
-        (total_available_stock = 0)              DESC,
-        (total_available_stock <= critical_threshold) DESC,
-        sku_id                                   ASC
+        is_out_of_stock    DESC,
+        is_below_threshold DESC,
+        sku_id             ASC
 """)
 
 
@@ -305,6 +282,7 @@ def get_products_thresholds(
 ) -> List[Dict[str, Any]]:
     params = {
         "sku_id":          sku_id or None,
+        "category":        category or None,
         "below_threshold": below_threshold,
     }
     try:

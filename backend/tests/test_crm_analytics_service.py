@@ -228,6 +228,7 @@ class TestGetSlaSummary:
         assert "totalViolations" in result
         assert "criticalViolations" in result
         assert "slaComplianceRate" in result
+        assert "ticketsEvaluated" in result
 
     def test_sla_compliance_is_percentage(self):
         from app.services.crm_analytics_service import get_sla_summary
@@ -243,13 +244,14 @@ class TestGetSlaSummary:
         assert isinstance(result["totalViolations"], int)
         assert isinstance(result["criticalViolations"], int)
 
-    def test_no_tickets_evaluated_default_to_one(self):
-        """Cuando tickets_evaluated=0 se usa `or 1` para evitar ZeroDivisionError."""
+    def test_no_tickets_evaluated_reports_zero(self):
+        """Sin tickets evaluables: no lanza ZeroDivisionError, compliance 0.0 y
+        ticketsEvaluated=0 (el frontend usa eso para mostrar 'Sin datos')."""
         from app.services.crm_analytics_service import get_sla_summary
         db = _make_db_scalar(0)
         result = get_sla_summary(db)
-        # No debe lanzar ZeroDivisionError
         assert result["slaComplianceRate"] == 0.0
+        assert result["ticketsEvaluated"] == 0
 
 
 # ─── get_tickets_by_channel ────────────────────────────────────────────────────
@@ -269,6 +271,16 @@ class TestGetTicketsByChannel:
         result = get_tickets_by_channel(db)
         assert result == {"total": 0, "items": []}
 
+    def test_merges_mixed_casing(self):
+        """Casing mezclado histórico ("email" vs "Email") se fusiona en una
+        sola categoría canónica."""
+        from app.services.crm_analytics_service import get_tickets_by_channel
+        db = _make_db_rows([("email", 4), ("Email", 6), ("telefono", 5)])
+        result = get_tickets_by_channel(db)
+        assert result["total"] == 15
+        by_name = {item["name"]: item["count"] for item in result["items"]}
+        assert by_name == {"Email": 10, "Teléfono": 5}
+
 
 # ─── get_tickets_by_priority ───────────────────────────────────────────────────
 
@@ -280,6 +292,20 @@ class TestGetTicketsByPriority:
         assert result["total"] == 10
         names = {item["name"] for item in result["items"]}
         assert names == {"Alta", "Media"}
+
+    def test_merges_mixed_casing(self):
+        """El bug reportado: "alta"/"Alta" y "critica"/"Crítica" ya no
+        aparecen como categorías duplicadas."""
+        from app.services.crm_analytics_service import get_tickets_by_priority
+        db = _make_db_rows([
+            ("alta", 2), ("Alta", 3),
+            ("critica", 1), ("Crítica", 4),
+            ("Media", 5),
+        ])
+        result = get_tickets_by_priority(db)
+        assert result["total"] == 15
+        by_name = {item["name"]: item["count"] for item in result["items"]}
+        assert by_name == {"Alta": 5, "Crítica": 5, "Media": 5}
 
 
 # ─── get_tickets_by_source_project ─────────────────────────────────────────────

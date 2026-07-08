@@ -196,10 +196,17 @@ function TicketLiveSearch() {
           <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-foreground">{result.ticket_id}</span>
-              <StatusBadge status={STATE_LABEL[result.estado] ?? 'neutral'} label={result.estado} />
-              {result.prioridad && (
-                <StatusBadge status={PRIORITY_STATUS[result.prioridad] ?? 'neutral'} label={result.prioridad} />
-              )}
+              {(() => {
+                // El CRM externo devuelve estado/prioridad en minúscula sin
+                // tilde; se normaliza al canónico para que el badge tenga el
+                // color y texto correctos (igual que en Tickets Recientes).
+                const estado = normalizeEstadoDisplay(result.estado)
+                return <StatusBadge status={STATE_LABEL[estado] ?? 'neutral'} label={estado} />
+              })()}
+              {result.prioridad && (() => {
+                const prioridad = normalizePrioridadDisplay(result.prioridad)
+                return <StatusBadge status={PRIORITY_STATUS[prioridad] ?? 'neutral'} label={prioridad} />
+              })()}
             </div>
             {result.asunto && <div className="text-sm text-foreground">{result.asunto}</div>}
             <div className="text-sm text-muted-foreground space-y-1">
@@ -562,19 +569,32 @@ export default function CRMPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-foreground">
-                    {sla?.slaComplianceRate?.toFixed(1) ?? 0}%
+                {(sla?.ticketsEvaluated ?? 0) === 0 ? (
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-muted-foreground">Sin datos</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Aún no hay tickets resueltos con dato de SLA para evaluar
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">Tasa de cumplimiento</div>
-                </div>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-foreground">
+                        {sla?.slaComplianceRate?.toFixed(1) ?? 0}%
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        Tasa de cumplimiento · {sla?.ticketsEvaluated} tickets evaluados
+                      </div>
+                    </div>
 
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-chart-1 transition-all"
-                    style={{ width: `${sla?.slaComplianceRate ?? 0}%` }}
-                  />
-                </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-chart-1 transition-all"
+                        style={{ width: `${sla?.slaComplianceRate ?? 0}%` }}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">

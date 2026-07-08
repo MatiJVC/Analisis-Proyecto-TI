@@ -42,6 +42,7 @@ class CRMSLASummary(BaseModel):
     totalViolations: int
     criticalViolations: int
     slaComplianceRate: float = Field(..., description="Porcentaje de tickets resueltos dentro del SLA")
+    ticketsEvaluated: int = Field(0, description="Tickets con dato de SLA (within_sla no-nulo); 0 = sin datos para evaluar")
 
 
 class CRMDistributionItem(BaseModel):
