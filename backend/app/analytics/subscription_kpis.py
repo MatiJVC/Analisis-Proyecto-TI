@@ -133,8 +133,11 @@ def get_subscription_stats(db: Session, days: Optional[int] = None) -> dict:
     cancellations = cancel_query.scalar() or 0
     
     # Churn Rate: Cancelaciones / (Total activo + Nuevas) × 100%
-    churn_denominator = active + new_subscriptions if active + new_subscriptions > 0 else 1
-    churn_rate = round((cancellations / churn_denominator) * 100, 2)
+    churn_denominator = active + new_subscriptions
+    if churn_denominator > 0:
+        churn_rate = min(round((cancellations / churn_denominator) * 100, 2), 100.0)
+    else:
+        churn_rate = 0.0
     
     # Lifetime Value: Tiempo promedio de suscripción en meses (cálculo en Python)
     subs = db.query(FactSubscription.start_date, FactSubscription.end_date, FactSubscription.status).filter(
