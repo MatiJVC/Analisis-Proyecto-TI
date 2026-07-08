@@ -187,6 +187,7 @@ def get_failure_reasons(db: Session, hours: int = 24, top_n: int = 10) -> Dict[s
     reasons_q = (
         db.query(
             DimErrorCode.descripcion.label("reason"),
+            DimErrorCode.categoria.label("categoria"),
             func.count().label("cnt"),
         )
         .select_from(latest)
@@ -195,7 +196,7 @@ def get_failure_reasons(db: Session, hours: int = 24, top_n: int = 10) -> Dict[s
             latest.c.estado.in_(_FAILURES),
             latest.c.error_code_id.isnot(None),
         )
-        .group_by(DimErrorCode.descripcion)
+        .group_by(DimErrorCode.descripcion, DimErrorCode.categoria)
         .order_by(func.count().desc())
         .limit(top_n)
     )
@@ -203,6 +204,7 @@ def get_failure_reasons(db: Session, hours: int = 24, top_n: int = 10) -> Dict[s
     reasons = [
         {
             "reason":     row.reason,
+            "categoria":  row.categoria,
             "count":      int(row.cnt),
             "percentage": round(float(row.cnt) / float(failed) * 100.0, 1) if failed else 0.0,
         }

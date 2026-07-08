@@ -39,8 +39,8 @@ _FAILURES_DATA = {
     "total": 1000,
     "failed": 50,
     "reasons": [
-        {"reason": "Fondos insuficientes", "count": 30, "percentage": 60.0},
-        {"reason": "Tarjeta rechazada", "count": 20, "percentage": 40.0},
+        {"reason": "Fondos insuficientes", "categoria": "tarjeta", "count": 30, "percentage": 60.0},
+        {"reason": "Proveedor no disponible", "categoria": "proveedor", "count": 20, "percentage": 40.0},
     ],
 }
 
@@ -76,6 +76,12 @@ _METHODS_DATA = {
 }
 
 
+_SLA_TIMELINE_DATA = [
+    {"date": "2026-07-05", "downtimeMinutes": 30.0, "degradedMinutes": 5.0},
+    {"date": "2026-07-06", "downtimeMinutes": 0.0,  "degradedMinutes": 0.0},
+]
+
+
 def _patch_all(monkeypatch):
     """Silencia todos los servicios de pagos para evitar llamadas reales."""
     monkeypatch.setattr("app.pagos.routes.analytics.get_payment_kpis",    lambda db, hours: _KPI_DATA)
@@ -83,6 +89,7 @@ def _patch_all(monkeypatch):
     monkeypatch.setattr("app.pagos.routes.analytics.get_failure_reasons",  lambda db, hours, top_n: _FAILURES_DATA)
     monkeypatch.setattr("app.pagos.routes.analytics.get_conciliation_summary", lambda db, hours: _CONCILIATION_DATA)
     monkeypatch.setattr("app.pagos.routes.analytics.get_sla_status",       lambda db, hours: _SLA_DATA)
+    monkeypatch.setattr("app.pagos.routes.analytics.get_sla_timeline",     lambda db, days: _SLA_TIMELINE_DATA)
     monkeypatch.setattr("app.pagos.routes.analytics.get_payment_methods",  lambda db, hours: _METHODS_DATA)
 
 
@@ -207,6 +214,15 @@ class TestPaymentFailures:
         assert "rejection_rate" in body
         assert "reasons" in body
         assert isinstance(body["reasons"], list)
+
+    def test_reasons_include_categoria(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_failure_reasons",
+            lambda db, hours, top_n: _FAILURES_DATA,
+        )
+        body = client.get("/v1/analytics/payments/failures").json()
+        assert body["reasons"][0]["categoria"] == "tarjeta"
+        assert body["reasons"][1]["categoria"] == "proveedor"
 
     def test_top_n_defaults_to_10(self, client: TestClient, monkeypatch):
         received = {}
@@ -378,3 +394,51 @@ class TestPaymentSLA:
             lambda db, hours: (_ for _ in ()).throw(RuntimeError("sla fail")),
         )
         assert client.get("/v1/analytics/payments/sla").status_code == 500
+
+
+# ─── GET /v1/analytics/payments/sla/timeline ─────────────────────────────────
+
+class TestPaymentSlaTimeline:
+
+    def test_returns_200_list(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_sla_timeline",
+            lambda db, days: _SLA_TIMELINE_DATA,
+        )
+        resp = client.get("/v1/analytics/payments/sla/timeline")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_each_point_has_required_fields(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_sla_timeline",
+            lambda db, days: _SLA_TIMELINE_DATA,
+        )
+        body = client.get("/v1/analytics/payments/sla/timeline").json()
+        for point in body:
+            for field in ("date", "downtimeMinutes", "degradedMinutes"):
+                assert field in point, f"Missing field: {field}"
+
+    def test_default_days_is_14(self, client: TestClient, monkeypatch):
+        captured = {}
+        def _capture(db, days):
+            captured["days"] = days
+            return _SLA_TIMELINE_DATA
+        monkeypatch.setattr("app.pagos.routes.analytics.get_sla_timeline", _capture)
+        client.get("/v1/analytics/payments/sla/timeline")
+        assert captured["days"] == 14
+
+    def test_days_over_90_returns_422(self, client: TestClient, monkeypatch):
+        _patch_all(monkeypatch)
+        assert client.get("/v1/analytics/payments/sla/timeline?days=91").status_code == 422
+
+    def test_days_zero_returns_422(self, client: TestClient, monkeypatch):
+        _patch_all(monkeypatch)
+        assert client.get("/v1/analytics/payments/sla/timeline?days=0").status_code == 422
+
+    def test_service_error_returns_500(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "app.pagos.routes.analytics.get_sla_timeline",
+            lambda db, days: (_ for _ in ()).throw(RuntimeError("timeline fail")),
+        )
+        assert client.get("/v1/analytics/payments/sla/timeline").status_code == 500

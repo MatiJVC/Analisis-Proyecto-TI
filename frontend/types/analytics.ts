@@ -493,3 +493,45 @@ export interface DetalleReporteHisto {
   kpiResumen: KpiResumen
   volumenPorMetodo: VolumenPorMetodo[]
 }
+
+// ── Gráficos analíticos de pagos (jul-2026) ──────────────────────────────────
+
+export interface ConciliationStatus {
+  status: string
+  count: number
+  percentage: number
+}
+
+export interface PaymentConciliationResponse {
+  statuses: ConciliationStatus[]
+  total: number
+  approval_rate: number
+}
+
+export interface FailureReason {
+  reason: string
+  categoria: string | null
+  count: number
+  percentage: number
+}
+
+export interface PaymentFailuresResponse {
+  rejection_rate: number
+  total: number
+  failed: number
+  reasons: FailureReason[]
+}
+
+export interface SlaTimelinePoint {
+  date: string
+  downtimeMinutes: number
+  degradedMinutes: number
+}
+
+export interface CierreDescuadrePoint {
+  fecha: string
+  reportedTotal: number
+  internalTotal: number | null
+  reportedCount: number
+  internalCount: number | null
+}

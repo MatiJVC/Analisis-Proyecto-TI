@@ -232,6 +232,39 @@ def get_detalle_reporte(db: Session, reporte_id: int) -> Dict[str, Any] | None:
     }
 
 
+def get_cierres_descuadre(db: Session, limit: int = 30) -> List[Dict[str, Any]]:
+    """Serie de descuadre reportado-vs-interno de los cierres diarios.
+
+    Lee cierre_diario ordenado por fecha ascendente (para graficar de izquierda a
+    derecha en el tiempo). `internal_total`/`internal_count` son nullable: se mapean
+    a None cuando falta el dato interno (cierre aún no conciliado).
+
+    Returns:
+        Lista (fecha ascendente) de dicts:
+        [{'fecha', 'reportedTotal', 'internalTotal', 'reportedCount', 'internalCount'}, ...]
+    """
+    rows = (
+        db.query(CierreDiario)
+        .order_by(CierreDiario.fecha.desc())
+        .limit(limit)
+        .all()
+    )
+    # Se pide DESC + limit para quedarnos con los N más recientes, pero el gráfico
+    # necesita orden cronológico ascendente → invertir en Python.
+    rows = list(reversed(rows))
+
+    return [
+        {
+            "fecha": c.fecha.isoformat(),
+            "reportedTotal": float(c.reported_total) if c.reported_total is not None else 0.0,
+            "internalTotal": float(c.internal_total) if c.internal_total is not None else None,
+            "reportedCount": int(c.reported_count) if c.reported_count is not None else 0,
+            "internalCount": int(c.internal_count) if c.internal_count is not None else None,
+        }
+        for c in rows
+    ]
+
+
 def generar_reporte_hoy(db: Session) -> None:
     """Genera el cierre diario del día actual usando los totales internos aprobados."""
     # date.today() usa la hora LOCAL del servidor; el resto del módulo (FactPagos.timestamp_evento,

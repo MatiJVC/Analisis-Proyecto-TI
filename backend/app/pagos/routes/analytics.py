@@ -12,10 +12,11 @@ from app.pagos.schemas.payment_analytics_schema import (
     PaymentMethodsResponse,
     PaymentTimelinePoint,
     SlaStatusResponse,
+    SlaTimelinePoint,
 )
 from app.pagos.analytics.payment_metrics import get_conciliation_summary, get_failure_reasons, get_payment_methods
 from app.pagos.services.payment_analytics_service import get_payment_kpis, get_payment_timeline
-from app.pagos.services.sla_service import get_sla_status
+from app.pagos.services.sla_service import get_sla_status, get_sla_timeline
 
 router = APIRouter(
     prefix="/analytics",
@@ -174,4 +175,28 @@ async def get_payments_sla(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error consultando estado SLA",
+        )
+
+
+@router.get(
+    "/payments/sla/timeline",
+    response_model=List[SlaTimelinePoint],
+    summary="Serie diaria de downtime/degradación de pagos",
+    description=(
+        "Agrupa fact_sla_events por día calendario UTC en la ventana indicada, "
+        "separando minutos de downtime y degradación. Devuelve un punto por cada día "
+        "de la ventana (0 si no hubo incidentes), ordenado del más antiguo al más reciente."
+    ),
+)
+async def get_payments_sla_timeline(
+    days: int = Query(default=14, ge=1, le=90, description="Días de ventana (1–90, default 14)"),
+    db: Session = Depends(get_db),
+) -> List[SlaTimelinePoint]:
+    try:
+        data = get_sla_timeline(db, days=days)
+        return [SlaTimelinePoint(**point) for point in data]
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error calculando timeline SLA",
         )

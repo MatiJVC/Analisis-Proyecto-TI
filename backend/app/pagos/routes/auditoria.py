@@ -1,11 +1,12 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth import require_any_role
 from app.db import get_db
 from app.pagos.schemas.payment_analytics_schema import (
+    CierreDescuadrePoint,
     DashboardResponse,
     DetalleReporteHisto,
     GenerarReporteResponse,
@@ -13,6 +14,7 @@ from app.pagos.schemas.payment_analytics_schema import (
 )
 from app.pagos.services.auditoria_service import (
     generar_reporte_hoy,
+    get_cierres_descuadre,
     get_dashboard,
     get_detalle_reporte,
     get_reportes_historicos,
@@ -93,6 +95,30 @@ async def get_detalle_reporte_endpoint(
             detail=f"Reporte {reporte_id} no encontrado",
         )
     return DetalleReporteHisto(**data)
+
+
+@router.get(
+    "/auditoria/cierres",
+    response_model=List[CierreDescuadrePoint],
+    summary="Descuadre reportado-vs-interno de cierres diarios",
+    description=(
+        "Retorna los últimos N cierres diarios en orden cronológico ascendente, con el "
+        "total y conteo reportado por el origen frente al interno conciliado. "
+        "Los campos internos son null cuando el cierre aún no se concilió."
+    ),
+)
+async def get_cierres_endpoint(
+    limit: int = Query(default=30, ge=1, le=180, description="Máximo de cierres a retornar (1–180)"),
+    db: Session = Depends(get_db),
+) -> List[CierreDescuadrePoint]:
+    try:
+        data = get_cierres_descuadre(db, limit=limit)
+        return [CierreDescuadrePoint(**c) for c in data]
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error consultando descuadre de cierres",
+        )
 
 
 @router.post(

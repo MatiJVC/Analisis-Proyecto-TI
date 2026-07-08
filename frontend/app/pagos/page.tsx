@@ -14,6 +14,10 @@ import {
   usePaymentDashboard,
   useReportesHistoricos,
   useDetalleReporte,
+  usePaymentConciliation,
+  usePaymentFailures,
+  usePaymentSlaTimeline,
+  useCierresDescuadre,
 } from "@/hooks/use-analytics";
 import {
   TrendingUp,
@@ -27,6 +31,7 @@ import {
 import {
   ComposedChart,
   Area,
+  AreaChart,
   Bar,
   XAxis,
   YAxis,
@@ -34,6 +39,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   BarChart,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
   Legend,
 } from "recharts";
 import { auditoriaAPI } from "@/services/api";
@@ -49,12 +59,47 @@ const ESTADO_BADGE: Record<
   fallido:    { label: "Fallido",    variant: "destructive" },
 };
 
+// Etiqueta humana + color por estado de conciliación (donut).
+const CONCILIACION_LABEL: Record<string, string> = {
+  "Aprobado": "Aprobado",
+  "esperando_revisión": "En revisión",
+  "discrepancia_de_monto": "Discrep. monto",
+  "discrepancia_de_transacciones": "Discrep. transac.",
+  "Rechazado": "Rechazado",
+};
+const CONCILIACION_COLOR: Record<string, string> = {
+  "Aprobado": "var(--chart-1)",
+  "esperando_revisión": "var(--chart-3)",
+  "discrepancia_de_monto": "var(--chart-4)",
+  "discrepancia_de_transacciones": "var(--chart-2)",
+  "Rechazado": "var(--chart-5)",
+};
+
+// Color por categoría de error (barras horizontales de rechazos).
+const CATEGORIA_COLOR: Record<string, string> = {
+  tarjeta: "var(--chart-2)",
+  proveedor: "var(--chart-4)",
+  validacion: "var(--chart-3)",
+  interno: "var(--chart-5)",
+};
+const _FALLBACK_COLOR = "var(--chart-1)";
+
 export default function PaymentsPage() {
   const { data: dashboard, isLoading: dashboardLoading } = usePaymentDashboard();
   const { data: reportes, isLoading: reportesLoading, mutate: mutateReportes } = useReportesHistoricos();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
   const { data: detalle, isLoading: detalleLoading } = useDetalleReporte(selectedId);
+  const { data: conciliation, isLoading: conciliationLoading } = usePaymentConciliation();
+  const { data: failures, isLoading: failuresLoading } = usePaymentFailures();
+  const { data: slaTimeline, isLoading: slaLoading } = usePaymentSlaTimeline();
+  const { data: cierres, isLoading: cierresLoading } = useCierresDescuadre();
+
+  const conciliationItems = conciliation?.statuses ?? [];
+  const failureReasons     = failures?.reasons ?? [];
+  const slaPoints          = slaTimeline ?? [];
+  const slaHasData         = slaPoints.some((p) => p.downtimeMinutes > 0 || p.degradedMinutes > 0);
+  const cierresList        = cierres ?? [];
 
   const kpis         = dashboard?.kpiResumen;
   const transacciones = dashboard?.transaccionesDiarias ?? [];
@@ -350,6 +395,231 @@ export default function PaymentsPage() {
                 </div>
               </ChartCard>
             )}
+
+            {/* Conciliación por estado (donut) */}
+            {conciliationLoading ? (
+              <ChartCardSkeleton />
+            ) : (
+              <ChartCard
+                title="Estado de conciliación"
+                description="Distribución de transacciones por estado — dónde queda detenido el dinero (últimas 24h)"
+              >
+                {conciliationItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-10 text-center">
+                    Sin transacciones en el período.
+                  </p>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 items-center">
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={conciliationItems}
+                            dataKey="count"
+                            nameKey="status"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={2}
+                          >
+                            {conciliationItems.map((s) => (
+                              <Cell
+                                key={s.status}
+                                fill={CONCILIACION_COLOR[s.status] ?? _FALLBACK_COLOR}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "var(--popover)",
+                              border: "1px solid var(--border)",
+                              borderRadius: "8px",
+                            }}
+                            labelStyle={{ color: "var(--foreground)" }}
+                            formatter={(value: any, _n: any, item: any) => [
+                              `${value} (${item?.payload?.percentage ?? 0}%)`,
+                              CONCILIACION_LABEL[item?.payload?.status] ?? item?.payload?.status,
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Tasa de aprobación:{" "}
+                        <span className="font-bold text-foreground">
+                          {conciliation?.approval_rate?.toFixed(1) ?? 0}%
+                        </span>
+                      </p>
+                      {conciliationItems.map((s) => (
+                        <div key={s.status} className="flex items-center gap-2 text-sm">
+                          <span
+                            className="h-3 w-3 rounded-sm flex-shrink-0"
+                            style={{ background: CONCILIACION_COLOR[s.status] ?? _FALLBACK_COLOR }}
+                          />
+                          <span className="flex-1 text-foreground">
+                            {CONCILIACION_LABEL[s.status] ?? s.status}
+                          </span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {s.count} · {s.percentage}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </ChartCard>
+            )}
+
+            {/* Motivos de rechazo (barras horizontales) */}
+            {failuresLoading ? (
+              <ChartCardSkeleton />
+            ) : (
+              <ChartCard
+                title="Motivos de rechazo"
+                description="Top razones de fallo, coloreadas por categoría de error (últimas 24h)"
+              >
+                {failureReasons.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-10 text-center">
+                    Sin rechazos con motivo registrado en el período.
+                  </p>
+                ) : (
+                  <>
+                    <div style={{ height: Math.max(failureReasons.length * 48, 160) }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={failureReasons}
+                          layout="vertical"
+                          margin={{ left: 12, right: 24 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--border)"
+                            horizontal={false}
+                          />
+                          <XAxis
+                            type="number"
+                            stroke="var(--muted-foreground)"
+                            fontSize={12}
+                            allowDecimals={false}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="reason"
+                            stroke="var(--muted-foreground)"
+                            fontSize={11}
+                            width={160}
+                          />
+                          <Tooltip
+                            cursor={{ fill: "var(--muted)", opacity: 0.3 }}
+                            contentStyle={{
+                              backgroundColor: "var(--popover)",
+                              border: "1px solid var(--border)",
+                              borderRadius: "8px",
+                            }}
+                            labelStyle={{ color: "var(--foreground)" }}
+                            formatter={(value: any, _n: any, item: any) => [
+                              `${value} (${item?.payload?.percentage ?? 0}%)`,
+                              item?.payload?.categoria ?? "—",
+                            ]}
+                          />
+                          <Bar dataKey="count" radius={[0, 4, 4, 0]} name="Transacciones">
+                            {failureReasons.map((r) => (
+                              <Cell
+                                key={r.reason}
+                                fill={CATEGORIA_COLOR[r.categoria ?? ""] ?? _FALLBACK_COLOR}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {Object.entries(CATEGORIA_COLOR).map(([cat, color]) => (
+                        <div
+                          key={cat}
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                        >
+                          <span
+                            className="h-2.5 w-2.5 rounded-sm"
+                            style={{ background: color }}
+                          />
+                          <span className="capitalize">{cat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </ChartCard>
+            )}
+
+            {/* Incidentes SLA — downtime vs degradación (área apilada) */}
+            {slaLoading ? (
+              <ChartCardSkeleton />
+            ) : (
+              <ChartCard
+                title="Incidentes de SLA — últimos 14 días"
+                description="Minutos de downtime y degradación por día"
+              >
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={slaPoints}>
+                      <defs>
+                        <linearGradient id="downtimeGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--chart-5)" stopOpacity={0.5} />
+                          <stop offset="95%" stopColor="var(--chart-5)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="degradedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--chart-4)" stopOpacity={0.5} />
+                          <stop offset="95%" stopColor="var(--chart-4)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis
+                        dataKey="date"
+                        stroke="var(--muted-foreground)"
+                        fontSize={11}
+                        tickFormatter={(d: string) => d?.slice(5)}
+                      />
+                      <YAxis stroke="var(--muted-foreground)" fontSize={12} width={54} unit=" m" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "var(--popover)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "var(--foreground)" }}
+                      />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="downtimeMinutes"
+                        stackId="1"
+                        stroke="var(--chart-5)"
+                        fill="url(#downtimeGrad)"
+                        strokeWidth={2}
+                        name="Downtime (min)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="degradedMinutes"
+                        stackId="1"
+                        stroke="var(--chart-4)"
+                        fill="url(#degradedGrad)"
+                        strokeWidth={2}
+                        name="Degradación (min)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                {!slaHasData && (
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    Sin incidentes de disponibilidad registrados en el período.
+                  </p>
+                )}
+              </ChartCard>
+            )}
           </TabsContent>
 
           {/* ── Tab: Auditoría ───────────────────────────────────────────── */}
@@ -368,6 +638,65 @@ export default function PaymentsPage() {
                 {generando ? "Generando..." : "Generar reporte"}
               </Button>
             </div>
+
+            {/* Descuadre reportado vs. interno (líneas) */}
+            {cierresLoading ? (
+              <ChartCardSkeleton />
+            ) : cierresList.length === 0 ? null : (
+              <ChartCard
+                title="Descuadre reportado vs. interno"
+                description="Monto total reportado por el origen frente al conciliado internamente, por cierre diario"
+              >
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={cierresList}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis
+                        dataKey="fecha"
+                        stroke="var(--muted-foreground)"
+                        fontSize={11}
+                        tickFormatter={(d: string) => d?.slice(5)}
+                      />
+                      <YAxis
+                        stroke="var(--muted-foreground)"
+                        fontSize={12}
+                        width={72}
+                        tickFormatter={(v: number) => v.toLocaleString("es-CL")}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "var(--popover)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "var(--foreground)" }}
+                        formatter={(value: any) =>
+                          value == null ? "—" : Number(value).toLocaleString("es-CL")
+                        }
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="reportedTotal"
+                        stroke="var(--chart-1)"
+                        strokeWidth={2}
+                        name="Reportado"
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="internalTotal"
+                        stroke="var(--chart-2)"
+                        strokeWidth={2}
+                        name="Interno"
+                        dot={{ r: 3 }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </ChartCard>
+            )}
 
             {reportesLoading ? (
               <div className="space-y-2">

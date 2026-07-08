@@ -36,10 +36,11 @@ class PaymentKPIsResponse(BaseModel):
 
 class FailureReason(BaseModel):
     reason: str   = Field(..., description="Descripción legible del error (de dim_error_codes.descripcion)")
+    categoria: str | None = Field(default=None, description="Categoría del error (interno/proveedor/tarjeta/validacion)")
     count: int    = Field(..., description="Transacciones con este error en la ventana")
     percentage: float = Field(..., description="Porcentaje sobre el total de fallidas")
 
-    model_config = {"json_schema_extra": {"example": {"reason": "Fondos insuficientes", "count": 186, "percentage": 45.1}}}
+    model_config = {"json_schema_extra": {"example": {"reason": "Fondos insuficientes", "categoria": "tarjeta", "count": 186, "percentage": 45.1}}}
 
 
 class PaymentFailuresResponse(BaseModel):
@@ -140,6 +141,16 @@ class SlaStatusResponse(BaseModel):
     }}}
 
 
+class SlaTimelinePoint(BaseModel):
+    date: str = Field(..., description="Día en formato YYYY-MM-DD (UTC)")
+    downtimeMinutes: float = Field(..., description="Minutos de downtime acumulados ese día")
+    degradedMinutes: float = Field(..., description="Minutos de degradación acumulados ese día")
+
+    model_config = {"json_schema_extra": {"example": {
+        "date": "2026-07-05", "downtimeMinutes": 12.5, "degradedMinutes": 3.0,
+    }}}
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 class KpiResumen(BaseModel):
@@ -184,3 +195,16 @@ class DetalleReporteHisto(BaseModel):
 
 class GenerarReporteResponse(BaseModel):
     success: bool
+
+
+class CierreDescuadrePoint(BaseModel):
+    fecha: str = Field(..., description="Fecha del cierre en formato YYYY-MM-DD")
+    reportedTotal: float = Field(..., description="Monto total reportado por el origen")
+    internalTotal: float | None = Field(default=None, description="Monto total interno conciliado (null si aún no concilia)")
+    reportedCount: int = Field(..., description="Conteo de transacciones reportadas")
+    internalCount: int | None = Field(default=None, description="Conteo de transacciones internas (null si aún no concilia)")
+
+    model_config = {"json_schema_extra": {"example": {
+        "fecha": "2026-07-05", "reportedTotal": 84000.0, "internalTotal": 83950.0,
+        "reportedCount": 120, "internalCount": 119,
+    }}}

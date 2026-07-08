@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
@@ -55,6 +55,72 @@ def compute_uptime(db: Session, hours: int = 24) -> float:
     downtime_capped = min(float(downtime_seconds), window_seconds)
     uptime_pct = round((window_seconds - downtime_capped) / window_seconds * 100.0, 4)
     return uptime_pct
+
+
+def get_sla_timeline(db: Session, days: int = 14) -> List[Dict[str, Any]]:
+    """Serie diaria de minutos de downtime y degradación en la ventana [now-days, now].
+
+    Agrupa fact_sla_events por día calendario UTC, separando por `tipo`
+    ('downtime' vs 'degraded'). Para cada evento se suma el solape con cada día
+    (eventos abiertos —timestamp_fin NULL— se recortan hasta `now`). Devuelve un
+    punto por cada día de la ventana (0 si no hubo incidentes) para que el área
+    no tenga huecos.
+
+    Returns:
+        Lista ordenada (día más antiguo primero) de dicts:
+        [{'date': 'YYYY-MM-DD', 'downtimeMinutes': float, 'degradedMinutes': float}, ...]
+    """
+    now = datetime.now(tz=timezone.utc)
+    window_start = now - timedelta(days=days)
+
+    # Días calendario UTC de la ventana, del más antiguo al más reciente.
+    today = now.date()
+    day_list = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
+
+    # Buckets acumuladores por fecha ISO.
+    buckets: Dict[str, Dict[str, float]] = {
+        d.isoformat(): {"downtimeMinutes": 0.0, "degradedMinutes": 0.0} for d in day_list
+    }
+
+    events = (
+        db.query(
+            FactSlaEvent.tipo,
+            FactSlaEvent.timestamp_inicio,
+            FactSlaEvent.timestamp_fin,
+        )
+        .filter(
+            FactSlaEvent.tipo.in_(("downtime", "degraded")),
+            FactSlaEvent.timestamp_inicio < now,
+            (FactSlaEvent.timestamp_fin.is_(None)) | (FactSlaEvent.timestamp_fin > window_start),
+        )
+        .all()
+    )
+
+    def _as_utc(dt: datetime) -> datetime:
+        # Postgres (timezone=True) devuelve datetimes aware; SQLite u otros orígenes
+        # pueden devolverlos naive. Normalizamos a UTC para comparar sin romper.
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+    for tipo, inicio, fin in events:
+        ev_start = _as_utc(inicio)
+        ev_end = _as_utc(fin) if fin is not None else now
+        key = "downtimeMinutes" if tipo == "downtime" else "degradedMinutes"
+
+        for d in day_list:
+            day_start = datetime.combine(d, datetime.min.time()).replace(tzinfo=timezone.utc)
+            day_end = day_start + timedelta(days=1)
+            overlap = (min(ev_end, day_end) - max(ev_start, day_start)).total_seconds()
+            if overlap > 0:
+                buckets[d.isoformat()][key] += overlap / 60.0
+
+    return [
+        {
+            "date": d.isoformat(),
+            "downtimeMinutes": round(buckets[d.isoformat()]["downtimeMinutes"], 1),
+            "degradedMinutes": round(buckets[d.isoformat()]["degradedMinutes"], 1),
+        }
+        for d in day_list
+    ]
 
 
 def check_sla_and_alert(db: Session, uptime_pct: float, hours: int) -> bool:

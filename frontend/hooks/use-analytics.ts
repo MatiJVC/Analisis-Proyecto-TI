@@ -127,6 +127,22 @@ export function useDetalleReporte(id: string | null) {
   )
 }
 
+export function usePaymentConciliation() {
+  return useSWR('payments-conciliation', auditoriaAPI.getConciliation, swrConfig)
+}
+
+export function usePaymentFailures() {
+  return useSWR('payments-failures', auditoriaAPI.getFailures, swrConfig)
+}
+
+export function usePaymentSlaTimeline() {
+  return useSWR('payments-sla-timeline', auditoriaAPI.getSlaTimeline, swrConfig)
+}
+
+export function useCierresDescuadre() {
+  return useSWR('payments-cierres-descuadre', auditoriaAPI.getCierresDescuadre, swrConfig)
+}
+
 // Overview hooks
 export function useGlobalKPIs() {
   return useSWR('overview-kpis', overviewAPI.getGlobalKPIs, swrConfig)

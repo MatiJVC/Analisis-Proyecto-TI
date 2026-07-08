@@ -3,6 +3,12 @@ import * as mockData from "./mock-data";
 import { getAccessToken } from "@/lib/keycloak";
 import type { DashboardMetricas, ReporteHistorico, DetalleReporteHisto } from "@/types/analytics";
 import type { SensorsByTypeResponse, SensorsStatusResponse } from "@/types/analytics";
+import type {
+  PaymentConciliationResponse,
+  PaymentFailuresResponse,
+  SlaTimelinePoint,
+  CierreDescuadrePoint,
+} from "@/types/analytics";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(
   /\/+$/,
@@ -173,6 +179,56 @@ const _mockDashboard: DashboardMetricas = {
 
 const _mockReportes: ReporteHistorico[] = [];
 
+const _mockConciliation: PaymentConciliationResponse = {
+  statuses: [
+    { status: "Aprobado", count: 820, percentage: 82.0 },
+    { status: "esperando_revisión", count: 90, percentage: 9.0 },
+    { status: "discrepancia_de_monto", count: 45, percentage: 4.5 },
+    { status: "discrepancia_de_transacciones", count: 25, percentage: 2.5 },
+    { status: "Rechazado", count: 20, percentage: 2.0 },
+  ],
+  total: 1000,
+  approval_rate: 82.0,
+};
+
+const _mockFailures: PaymentFailuresResponse = {
+  rejection_rate: 9.0,
+  total: 1000,
+  failed: 90,
+  reasons: [
+    { reason: "Fondos insuficientes", categoria: "tarjeta", count: 34, percentage: 37.8 },
+    { reason: "Proveedor no disponible", categoria: "proveedor", count: 22, percentage: 24.4 },
+    { reason: "Tarjeta expirada", categoria: "tarjeta", count: 14, percentage: 15.6 },
+    { reason: "Monto inválido o fuera de rango permitido", categoria: "validacion", count: 12, percentage: 13.3 },
+    { reason: "Error interno del sistema de pagos", categoria: "interno", count: 8, percentage: 8.9 },
+  ],
+};
+
+const _mockSlaTimeline: SlaTimelinePoint[] = Array.from({ length: 14 }).map((_, i) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - (13 - i));
+  const iso = d.toISOString().slice(0, 10);
+  // Un par de días con incidentes para que el mock no sea plano.
+  const downtimeMinutes = i === 4 ? 22.5 : i === 10 ? 8.0 : 0;
+  const degradedMinutes = i === 4 ? 5.0 : i === 8 ? 12.0 : 0;
+  return { date: iso, downtimeMinutes, degradedMinutes };
+});
+
+const _mockCierres: CierreDescuadrePoint[] = Array.from({ length: 7 }).map((_, i) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - (6 - i));
+  const fecha = d.toISOString().slice(0, 10);
+  const reportedTotal = 80000 + i * 4000;
+  const reportedCount = 120 + i * 6;
+  return {
+    fecha,
+    reportedTotal,
+    internalTotal: reportedTotal - (i % 3 === 0 ? 350 : 0),
+    reportedCount,
+    internalCount: reportedCount - (i % 3 === 0 ? 1 : 0),
+  };
+});
+
 export const auditoriaAPI = {
   getDashboard: (): Promise<DashboardMetricas> =>
     fetchAPI("/v1/analitica/dashboard", _mockDashboard),
@@ -187,6 +243,14 @@ export const auditoriaAPI = {
     } as DetalleReporteHisto),
   generarReporte: (): Promise<{ success: boolean }> =>
     postFetch("/v1/auditoria/reportes/generar"),
+  getConciliation: (): Promise<PaymentConciliationResponse> =>
+    fetchAPI("/v1/analytics/payments/conciliation", _mockConciliation),
+  getFailures: (): Promise<PaymentFailuresResponse> =>
+    fetchAPI("/v1/analytics/payments/failures", _mockFailures),
+  getSlaTimeline: (): Promise<SlaTimelinePoint[]> =>
+    fetchAPI("/v1/analytics/payments/sla/timeline", _mockSlaTimeline),
+  getCierresDescuadre: (): Promise<CierreDescuadrePoint[]> =>
+    fetchAPI("/v1/auditoria/cierres?limit=30", _mockCierres),
 };
 
 // Overview API
