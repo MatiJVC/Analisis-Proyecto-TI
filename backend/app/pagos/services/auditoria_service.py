@@ -20,13 +20,6 @@ _ESTADO_MAP: Dict[str, str] = {
     "discrepancia_de_transacciones": "fallido",
 }
 
-_METHOD_LABELS: Dict[str, str] = {
-    "tarjeta_credito": "Tarjeta de Crédito",
-    "tarjeta_debito": "Tarjeta de Débito",
-    "transferencia": "Transferencia",
-    "billetera_digital": "Billetera Digital",
-}
-
 
 def _compute_uptime_window(db: Session, window_start: datetime, window_end: datetime) -> float:
     """Calcula uptime para una ventana de tiempo arbitraria (histórico por fecha)."""
@@ -214,9 +207,23 @@ def get_detalle_reporte(db: Session, reporte_id: int) -> Dict[str, Any] | None:
         .all()
     )
 
+    # El flujo real sólo entrega tarjeta (débito y crédito juntos) y wallet:
+    # se canoniza y fusiona. Constante local a la función a propósito (no
+    # global de módulo — ver CLAUDE.md).
+    def _canon_metodo(raw: str) -> str:
+        v = (raw or "").strip().lower()
+        if "wallet" in v or "billetera" in v:
+            return "Wallet"
+        if any(k in v for k in ("tarjeta", "card", "credito", "crédito", "debito", "débito")):
+            return "Tarjeta"
+        return (raw or "").strip() or "Otro"
+
+    _merged_metodos: Dict[str, int] = {}
+    for r in method_rows:
+        _merged_metodos[_canon_metodo(r.method)] = _merged_metodos.get(_canon_metodo(r.method), 0) + int(r.cnt)
     volumen_por_metodo = [
-        {"metodo": _METHOD_LABELS.get(r.method, r.method), "volumenTrans": int(r.cnt)}
-        for r in method_rows
+        {"metodo": metodo, "volumenTrans": cnt}
+        for metodo, cnt in sorted(_merged_metodos.items(), key=lambda kv: kv[1], reverse=True)
     ]
 
     return {
