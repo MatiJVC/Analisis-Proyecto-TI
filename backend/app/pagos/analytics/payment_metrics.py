@@ -219,20 +219,26 @@ def get_failure_reasons(db: Session, hours: int = 24, top_n: int = 10) -> Dict[s
     }
 
 
-_METHOD_LABELS: Dict[str, str] = {
-    "tarjeta_credito":   "Tarjeta de Crédito",
-    "tarjeta_debito":    "Tarjeta de Débito",
-    "transferencia":     "Transferencia",
-    "billetera_digital": "Billetera Digital",
-}
-
-
 def get_payment_methods(db: Session, hours: int = 24) -> Dict[str, Any]:
     """Distribución de transacciones aprobadas por método de pago.
 
     Ventana rodante de `hours` horas. Solo cuenta transacciones Aprobado con
     payment_method no nulo. Devuelve methods (con name, value%, count) y total.
+
+    El flujo real sólo entrega dos métodos: tarjeta (débito y crédito se
+    cuentan juntos) y wallet. Se canonicaliza cualquier variante a esas dos
+    categorías y se fusionan los conteos.
     """
+    # Constante local a la función a propósito (no global de módulo — ver
+    # CLAUDE.md; el patrón de payment_metrics.get_failure_reasons).
+    def _canon_metodo(raw: str) -> str:
+        v = (raw or "").strip().lower()
+        if "wallet" in v or "billetera" in v:
+            return "Wallet"
+        if any(k in v for k in ("tarjeta", "card", "credito", "crédito", "debito", "débito")):
+            return "Tarjeta"
+        return (raw or "").strip() or "Otro"
+
     start = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
 
     rows = (
@@ -253,13 +259,17 @@ def get_payment_methods(db: Session, hours: int = 24) -> Dict[str, Any]:
 
     total = sum(int(r.cnt) for r in rows)
 
+    merged: Dict[str, int] = {}
+    for r in rows:
+        merged[_canon_metodo(r.method)] = merged.get(_canon_metodo(r.method), 0) + int(r.cnt)
+
     methods = [
         {
-            "name":  _METHOD_LABELS.get(r.method, r.method),
-            "count": int(r.cnt),
-            "value": round(float(r.cnt) / float(total) * 100.0, 1) if total else 0.0,
+            "name":  name,
+            "count": cnt,
+            "value": round(float(cnt) / float(total) * 100.0, 1) if total else 0.0,
         }
-        for r in rows
+        for name, cnt in sorted(merged.items(), key=lambda kv: kv[1], reverse=True)
     ]
 
     return {"methods": methods, "total": total}
