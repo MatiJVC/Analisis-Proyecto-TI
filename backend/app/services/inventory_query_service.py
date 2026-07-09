@@ -34,7 +34,12 @@ _STOCK_BASE_CTES = """
         SELECT
             sku_id,
             location_id,
-            (
+            -- GREATEST(0, ...): despachos/ajustes desfasados de su stock_received
+            -- (eventos que llegan fuera de orden o carga inicial no registrada)
+            -- pueden dejar el neto en negativo; el stock físico real nunca lo es.
+            -- Sin este clamp, InventorySnapshotRow.physical_stock (ge=0) lanza
+            -- ValidationError y tira 500 TODO el snapshot, no solo esa fila.
+            GREATEST(0,
                   COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_received'), 0)
                 - COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_dispatched'), 0)
                 + COALESCE(SUM(quantity) FILTER (WHERE event_type = 'stock_adjusted'), 0)
