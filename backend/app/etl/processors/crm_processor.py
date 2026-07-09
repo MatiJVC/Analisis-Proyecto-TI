@@ -106,6 +106,33 @@ def _parse_dt(value: Any) -> Optional[datetime]:
     return None
 
 
+def _as_utc(dt: Any) -> Optional[datetime]:
+    """Asegura tz-aware en UTC: los datetime naive (ej. columnas leídas sin tz)
+    se asumen UTC para poder restarlos con datetimes aware sin TypeError. Un
+    valor que no sea datetime (ej. un ticket mockeado en tests, o un campo
+    corrupto) devuelve None en vez de propagar el error."""
+    if not isinstance(dt, datetime):
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
+def _ticket_id(payload: Dict[str, Any]) -> Optional[str]:
+    """El TicketDto del CRM externo usa 'id'; nuestro formato canónico usa
+    'ticket_id'. Se acepta el nativo como fallback (mismo criterio que
+    crm_external_client.get_ticket_estado)."""
+    return payload.get("ticket_id") or payload.get("id")
+
+
+def _resolution_hours(inicio: Any, fin: Any) -> Optional[float]:
+    """Horas entre creación y resolución/cierre. None si falta algún extremo,
+    no es un datetime real, o el delta es negativo (dato inconsistente)."""
+    inicio, fin = _as_utc(inicio), _as_utc(fin)
+    if inicio is None or fin is None:
+        return None
+    horas = (fin - inicio).total_seconds() / 3600.0
+    return round(horas, 4) if horas >= 0 else None
+
+
 def _require_ticket(db: Session, ticket_id: str) -> FactTicket:
     """Obtiene un ticket existente o lanza CRMProcessingError si no existe."""
     ticket = db.query(FactTicket).filter(FactTicket.ticket_id == ticket_id).first()
@@ -144,13 +171,18 @@ def _get_or_create_ticket(db: Session, ticket_id: str, payload: Dict[str, Any]) 
         cliente_identidad_id=payload.get("cliente_identidad_id"),
         agente_id=payload.get("agente_id"),
         pedido_id_ref=payload.get("pedido_id_ref"),
-        suscripcion_id_red=payload.get("suscripcion_id_red"),
+        # El CRM externo manda 'suscripcion_id_ref'; el modelo usa la clave
+        # histórica 'suscripcion_id_red' (typo). Se acepta ambas.
+        suscripcion_id_red=payload.get("suscripcion_id_red") or payload.get("suscripcion_id_ref"),
         cliente_id=payload.get("cliente_id"),
         cliente_nombre=payload.get("cliente_nombre"),
         pago_id_ref=payload.get("pago_id_ref"),
         salud_ref=payload.get("salud_ref"),
         fecha_vencimiento_sla=_parse_dt(payload.get("fecha_vencimiento_sla")),
-        opened_at=datetime.now(tz=timezone.utc),
+        # Preferir la fecha de creación real del CRM externo ('creado_en') para
+        # que el timeline y el tiempo de resolución no queden sesgados por la
+        # hora de ingesta; fallback a now() si no viene.
+        opened_at=_parse_dt(payload.get("creado_en")) or datetime.now(tz=timezone.utc),
     )
 
 
@@ -192,7 +224,7 @@ def _upsert_cliente(db: Session, payload: Dict[str, Any]) -> Optional[DimCliente
 # ---------------------------------------------------------------------------
 
 def _handle_ticket_creado(db: Session, payload: Dict[str, Any]) -> FactTicket:
-    ticket_id = payload.get("ticket_id")
+    ticket_id = _ticket_id(payload)
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
     _upsert_cliente(db, payload)
@@ -203,7 +235,7 @@ def _handle_ticket_creado(db: Session, payload: Dict[str, Any]) -> FactTicket:
 
 
 def _handle_ticket_asignado(db: Session, payload: Dict[str, Any]) -> FactTicket:
-    ticket_id = payload.get("ticket_id")
+    ticket_id = _ticket_id(payload)
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
     ticket = _require_ticket(db, ticket_id)
@@ -217,7 +249,7 @@ def _handle_ticket_asignado(db: Session, payload: Dict[str, Any]) -> FactTicket:
 
 
 def _handle_ticket_escalado(db: Session, payload: Dict[str, Any]) -> FactTicket:
-    ticket_id = payload.get("ticket_id")
+    ticket_id = _ticket_id(payload)
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
     ticket = _require_ticket(db, ticket_id)
@@ -231,17 +263,36 @@ def _handle_ticket_escalado(db: Session, payload: Dict[str, Any]) -> FactTicket:
 
 
 def _handle_ticket_resuelto(db: Session, payload: Dict[str, Any]) -> FactTicket:
-    ticket_id = payload.get("ticket_id")
+    ticket_id = _ticket_id(payload)
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
     ticket = _require_ticket(db, ticket_id)
     _validate_transition(ticket, "ticket.resuelto")
     ticket.estado = "Resuelto"
-    ticket.resolved_at = _parse_dt(payload.get("resolved_at")) or datetime.now(tz=timezone.utc)
+    # El CRM externo no manda 'resolved_at' explícito: se cae a 'actualizado_en'
+    # (la marca de última modificación de su TicketDto) y por último a now().
+    resolved_at = (
+        _parse_dt(payload.get("resolved_at"))
+        or _parse_dt(payload.get("actualizado_en"))
+        or datetime.now(tz=timezone.utc)
+    )
+    ticket.resolved_at = resolved_at
+    # Tiempo de resolución: usar el del payload si viene; si no, calcularlo
+    # entre la creación (creado_en real del CRM, o el opened_at almacenado) y la
+    # resolución — así avgResponseTime deja de ser 0 sin depender de un campo
+    # que el CRM externo no envía.
     if payload.get("resolution_time_hours") is not None:
         ticket.resolution_time_hours = float(payload["resolution_time_hours"])
+    else:
+        inicio = _parse_dt(payload.get("creado_en")) or ticket.opened_at
+        ticket.resolution_time_hours = _resolution_hours(inicio, resolved_at)
+    # within_sla: explícito si viene; si no, derivarlo del vencimiento de SLA.
     if "within_sla" in payload:
         ticket.within_sla = bool(payload["within_sla"])
+    else:
+        venc = _as_utc(_parse_dt(payload.get("fecha_vencimiento_sla")) or ticket.fecha_vencimiento_sla)
+        if venc is not None:
+            ticket.within_sla = _as_utc(resolved_at) <= venc
     if payload.get("prioridad"):
         ticket.prioridad = _normalize_prioridad(payload["prioridad"])
     if payload.get("agente_id"):
@@ -255,13 +306,29 @@ def _handle_ticket_resuelto(db: Session, payload: Dict[str, Any]) -> FactTicket:
 
 
 def _handle_ticket_cerrado(db: Session, payload: Dict[str, Any]) -> FactTicket:
-    ticket_id = payload.get("ticket_id")
+    ticket_id = _ticket_id(payload)
     if not ticket_id:
         raise CRMProcessingError("Campo requerido faltante: ticket_id")
     ticket = _require_ticket(db, ticket_id)
     _validate_transition(ticket, "ticket.cerrado")
     ticket.estado = "Cerrado"
-    ticket.closed_at = _parse_dt(payload.get("closed_at")) or datetime.now(tz=timezone.utc)
+    closed_at = (
+        _parse_dt(payload.get("closed_at"))
+        or _parse_dt(payload.get("actualizado_en"))
+        or datetime.now(tz=timezone.utc)
+    )
+    ticket.closed_at = closed_at
+    # 'Cerrado' también es un estado ya atendido. Para que resolutionRate, el
+    # timeline de resueltos (keyed en resolved_at) y avgResponseTime sean
+    # coherentes por cualquier camino (cerrado directo sin resuelto previo), se
+    # completa resolved_at/resolution_time_hours si aún no están seteados.
+    if ticket.resolved_at is None:
+        ticket.resolved_at = closed_at
+    if ticket.resolution_time_hours is None:
+        inicio = _parse_dt(payload.get("creado_en")) or ticket.opened_at
+        ticket.resolution_time_hours = _resolution_hours(inicio, closed_at)
+    if payload.get("resolucion"):
+        ticket.resolucion = payload["resolucion"]
     if payload.get("csat_score") is not None:
         ticket.csat_score = int(payload["csat_score"])
     ticket.updated_at = datetime.now(tz=timezone.utc)
